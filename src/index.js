@@ -30,7 +30,21 @@ client.on("message", async message => {
     handleMessage(message);
 });
 
-const queue = new Map();
+const connections = new Map();
+
+class Connection {
+    /**
+     * @param {Discord.VoiceConnection} vconnect 
+     */
+    constructor(vconnect) {
+        this.vc = vconnect;
+        /**
+         * @type {Discord.StreamDispatcher}
+         */
+        this.dispatcher = null;
+        this.changingSong = false;
+    }
+}
 
 /**
  * @param {Discord.Message} message
@@ -80,20 +94,24 @@ async function handleMessage(message) {
     }
 
     try {
-        /**
-         * @type {Discord.VoiceConnection}
-         */
-        let connection = queue.get(message.guild.id);
-        if (!connection) {
-            connection = await voiceChannel.join();
-            queue.set(message.guild.id, connection);
-        }
-
+        (await searchMsg).delete();
         message.channel.send("Have some nightcorified `" + video.title + "`!");
+
+        /**
+         * @type {Connection}
+         */
+        let connection = connections.get(message.guild.id);
+        if (!connection) {
+            connection = new Connection(await voiceChannel.join());
+            connections.set(message.guild.id, connection);
+        } else {
+            connection.changingSong = true;
+            connection.dispatcher.end();
+        }
 
         const sampleRate = format.audioSampleRate;
 
-        const rate = 2;
+        const rate = 1.3;
         let filters = [
             "asetrate=" + sampleRate + "*" + rate,
             "aresample=" + sampleRate,
@@ -110,18 +128,23 @@ async function handleMessage(message) {
 
         //return ff.output("out.wav").run();
 
-        const dispatcher = connection.play(ff.pipe(new Stream.PassThrough()), {
+        const dispatcher = connection.vc.play(ff.pipe(new Stream.PassThrough()), {
             volume: bassboost ? 0.5 : 0.8,
         })
             .on("finish", () => {
-                voiceChannel.leave();
-                queue.delete(message.guild.id);
-                dispatcher.end();
+                if (!connection.changingSong) {
+                    voiceChannel.leave();
+                    connections.delete(message.guild.id);
+                    dispatcher.end();
+                } else {
+                    connection.changingSong = false;
+                }
             })
             .on("error", error => console.error(error));
+        connection.dispatcher = dispatcher;
     } catch (err) {
         console.log(err);
-        queue.delete(message.guild.id);
+        connections.delete(message.guild.id);
         return message.channel.send(err);
     }
 }
