@@ -106,7 +106,7 @@ async function handleMessage(message) {
 async function respondHelp(message) {
     function singleParam(param, description, alias) {
         let s = "        `-";
-        if (alias) s += alias + "/-";
+        if (alias) s += alias + "`/`-";
         return s + param + "` : " + description;
     }
 
@@ -129,7 +129,7 @@ async function respondHelp(message) {
         ":arrow_forward: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
-        singleParam("rate <rate>", "Plays the song at `rate` speed (defaults to " + defaultRate + "x)", "r"),
+        singleParam("rate <rate>", "Plays the song at `rate` speed (default is " + defaultRate + "x)", "r"),
         singleParam("bassboost <dB>", "Boosts the bass frequencies by `dB` decibels", "bass"),
         singleParam("amplify <dB>", "Amplifies the song by `dB` decibels", "amp"),
         "",
@@ -298,6 +298,9 @@ async function respondPlay(message) {
         } else {
             connection.changingSong = true;
             connection.dispatcher.end();
+            if (voiceChannel.id !== connection.vc.channel.id) {
+                connection.vc = await voiceChannel.join();
+            }
         }
 
         message.channel.send("Have some nightcorified `" + video.title + "` " + smiley(party, true));
