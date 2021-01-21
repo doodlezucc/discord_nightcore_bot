@@ -207,13 +207,15 @@ async function respondPlay(message) {
             query += arg + " ";
         }
     }
-    console.log(query, rate, bassboost, amplify);
 
     if (rate == null || amplify == null || bassboost == null) {
         return;
     }
 
     query = query.trim();
+    if (!query.length) {
+        return message.channel.send("B-b-but you forgot the search query... " + smiley(sad));
+    }
     //console.log(query, rate, bassboost, amplify);
 
     const searchMsg = message.channel.send(
@@ -257,7 +259,7 @@ async function respondPlay(message) {
             connection.dispatcher.end();
         }
 
-        message.channel.send(smiley(party, true) + " Have some nightcorified `" + video.title + "`!");
+        message.channel.send("Have some nightcorified `" + video.title + "` " + smiley(party, true));
 
         const sampleRate = format.audioSampleRate;
 
