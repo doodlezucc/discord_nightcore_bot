@@ -20,6 +20,14 @@ client.login(token);
 
 client.once("ready", () => {
     console.log("Ready!");
+
+    client.user.setPresence({
+        status: "online",
+        activity: {
+            type: "PLAYING",
+            name: prefix
+        }
+    });
 });
 client.once("reconnecting", () => {
     console.log("Reconnecting!");
