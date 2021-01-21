@@ -4,6 +4,7 @@ const ytsr = require("ytsr");
 const ffmpeg = require("fluent-ffmpeg");
 const Stream = require("stream");
 const fs = require("fs");
+const traffic = require("./traffic");
 
 const jobsDir = "jobs/";
 if (!fs.existsSync(jobsDir)) {
@@ -97,6 +98,20 @@ async function handleMessage(message) {
             case "leave":
                 return respondLeave(message);
         }
+    } else if (args.length == 2 && args[0] === "debug") {
+        if (args[1] === "traffic") {
+            const read = traffic.getRead();
+            const written = traffic.getWritten();
+
+            function toLine(bytes) {
+                return bytes + " bytes (" + (bytes / 1024 / 1024).toFixed(1) + "MB)";
+            }
+
+            return message.channel.send([
+                "Read: " + toLine(read),
+                "Written: " + toLine(written),
+            ].join("\n"));
+        }
     }
 
     respondPlay(message);
@@ -126,7 +141,7 @@ async function respondHelp(message) {
 
     message.channel.send([
         "*I can help " + sender + "-chan! " + smiley(happy) + "*",
-        ":arrow_forward: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
+        ":musical_note: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
         singleParam("rate <rate>", "Plays the song at `rate` speed (default is " + defaultRate + "x)", "r"),
@@ -149,13 +164,14 @@ async function respondHelp(message) {
 async function respondSave(message) {
     const connection = connections.get(message.guild.id);
     if (!connection) {
-        return message.channel.send("There's nothing playing rn " + smiley(mad));
+        return message.channel.send("There's nothing playing rn, dingus " + smiley(mad));
     }
 
     const song = connection.currentSong;
     const name = song.searchQuery + "-nightcore.mp3";
 
     const stream = new Stream.PassThrough();
+    stream.on("data", traffic.onWrite);
     ffmpeg(song.file)
         .format("mp3")
         .pipe(stream);
@@ -289,15 +305,15 @@ async function respondPlay(message) {
         }
 
         const info = await ytdl.getInfo(video.url);
-        let format;
+        let format = {
+            contentLength: Infinity,
+        };
         for (let fmt of info.formats) {
             if (fmt.hasAudio && !fmt.hasVideo) {
-                // Check if file size is smaller than 100 MB
-                const bytes = parseInt(fmt.contentLength);
-                const mb = bytes / 1024 / 1024;
-                if (mb < 100) {
+                fmt.contentLength = parseInt(fmt.contentLength);
+                // Get smallest audio-only file
+                if (fmt.contentLength < format.contentLength) {
                     format = fmt;
-                    break;
                 }
             }
         }
@@ -353,13 +369,16 @@ async function respondPlay(message) {
             });
         ff.pipe(fs.createWriteStream(tempFile), { end: true });
 
+        // register audio download as traffic
+        traffic.onRead(parseInt(format.contentLength));
+
         await new Promise(done => setTimeout(done, 1000));
         (await searchMsg).delete();
 
-        /** @type {fs.ReadStream} */
-        let readStream;
+        const readStream = fs.createReadStream(tempFile);
+        readStream.on("data", traffic.onWrite);
 
-        const dispatcher = connection.vc.play(readStream = fs.createReadStream(tempFile), {
+        const dispatcher = connection.vc.play(readStream, {
             volume: 0.8,
         })
             .on("finish", () => {
