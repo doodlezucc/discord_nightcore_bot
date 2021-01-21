@@ -127,11 +127,16 @@ async function handleMessage(message) {
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
 
-        ffmpeg()
+        const ff = ffmpeg()
             .addInput(format.url)
             .audioFilter(filters)
             .format("opus")
-            .pipe(fs.createWriteStream(tempFile));
+            .on("error", (err) => {
+                if (!err.message.includes("SIGTERM")) {
+                    console.error(err);
+                }
+            });
+        ff.pipe(fs.createWriteStream(tempFile), { end: true });
 
         await new Promise(done => setTimeout(done, 1000));
         (await searchMsg).delete();
@@ -140,7 +145,10 @@ async function handleMessage(message) {
             volume: bassboost ? 0.5 : 0.8,
         })
             .on("finish", () => {
-                fs.unlink(tempFile, () => null);
+                readStream.destroy();
+                ff.kill("SIGTERM");
+                fs.unlinkSync(tempFile);
+
                 if (!connection.changingSong) {
                     voiceChannel.leave();
                     connections.delete(message.guild.id);
@@ -152,7 +160,7 @@ async function handleMessage(message) {
             .on("error", error => console.error(error));
         connection.dispatcher = dispatcher;
     } catch (err) {
-        console.log(err);
+        console.error(err);
         connections.delete(message.guild.id);
         return message.channel.send(err);
     }
