@@ -208,6 +208,11 @@ async function respondPlay(message) {
         });
         const video = search.items.find((item) => item.type === "video");
 
+        if (!video) {
+            return message.channel.send(
+                "**ok wow** I couldn't find any video at all how is that even possible?");
+        }
+
         const info = await ytdl.getInfo(video.url);
         let format;
         for (let fmt of info.formats) {
@@ -218,7 +223,9 @@ async function respondPlay(message) {
         }
 
         if (!format) {
-            return message.channel.send("oh no there's no audio source for `" + video.title + "`");
+            message.channel.send(
+                "**oh no** there's no audio source for `" + video.title + "`");
+            return (await searchMsg).delete();
         }
         /**
          * @type {Connection}
