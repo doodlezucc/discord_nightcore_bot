@@ -131,7 +131,7 @@ async function respondHelp(message) {
         "    *params* can be any of the following, separated by spaces:",
         singleParam("rate <rate>", "Plays the song at `rate` speed (default is " + defaultRate + "x)", "r"),
         singleParam("bassboost <dB>", "Boosts the bass frequencies by `dB` decibels", "bass"),
-        singleParam("amplify <dB>", "Amplifies the song by `dB` decibels", "amp"),
+        singleParam("amplify <dB>", "Amplifies the song by `dB` decibels", "volume`/`-amp"),
         "",
         "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
         "",
@@ -218,7 +218,7 @@ async function respondPlay(message) {
             i++;
             const argValue = args[i];
 
-            function parse(value) {
+            function parse(value, min, max) {
                 if (i >= args.length) {
                     return message.channel.send(smiley(sad) + " Parameter `" + arg + "` doesn't have a value!");
                 }
@@ -227,21 +227,29 @@ async function respondPlay(message) {
                     message.channel.send(smiley(sad) + " Couldn't parse `" + arg + " " + argValue + "`!");
                     return null;
                 }
+                if (parsed < min || parsed > max) {
+                    message.channel.send(smiley(sad)
+                        + " Parameter `" + arg + " " + argValue
+                        + "` is not in range [" + min + " to " + max + "]!"
+                    );
+                    return null;
+                }
                 return parsed;
             }
 
             switch (arg.substr(1)) {
                 case "r":
                 case "rate":
-                    rate = parse(argValue.replace("x", ""));
+                    rate = parse(argValue.replace("x", ""), 0.5, 16);
                     break;
+                case "volume":
                 case "amp":
                 case "amplify":
-                    amplify = parse(argValue);
+                    amplify = parse(argValue, -20, 60);
                     break;
                 case "bass":
                 case "bassboost":
-                    bassboost = parse(argValue);
+                    bassboost = parse(argValue, 0, 60);
                     break;
                 default:
                     return message.channel.send(smiley(sad) + " Unknown parameter `" + arg + "`!");
@@ -312,10 +320,10 @@ async function respondPlay(message) {
             "aresample=" + sampleRate,
         ];
         if (bassboost != 0) {
-            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + bassboost + ");entry(150,0)'");
+            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + bassboost + ");entry(350,0)'");
         }
         if (amplify != 0) {
-            filters.push("volume=" + amplify);
+            filters.push("volume=" + amplify + "dB");
         }
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
