@@ -2,6 +2,7 @@ const Discord = require("discord.js");
 const ytdl = require("ytdl-core");
 const ytsr = require("ytsr");
 const ffmpeg = require("fluent-ffmpeg");
+const Stream = require("stream");
 const fs = require("fs");
 
 const jobsDir = "jobs/";
@@ -66,8 +67,11 @@ class Connection {
         /** @type {Discord.StreamDispatcher} */
         this.dispatcher = null;
 
-        /** @type {string} */
-        this.currentFile = null;
+        this.currentSong = {
+            file: "",
+            title: "",
+            searchQuery: "",
+        };
     }
 }
 
@@ -86,12 +90,13 @@ async function handleMessage(message) {
         switch (args[0]) {
             case "help":
                 return respondHelp(message);
+            case "save":
+                return respondSave(message);
         }
     }
 
     respondPlay(message);
 }
-
 
 /** @param {Discord.Message} message */
 async function respondHelp(message) {
@@ -120,12 +125,36 @@ async function respondHelp(message) {
         "**Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
-        singleParam("rate <rate>", "Plays the song at `rate` speed (defaults is " + defaultRate + "x)", "r"),
+        singleParam("rate <rate>", "Plays the song at `rate` speed (defaults to " + defaultRate + "x)", "r"),
         singleParam("bassboost <dB>", "Boosts the bass frequencies by `dB` decibels", "bass"),
         singleParam("amplify <dB>", "Amplifies the song by `dB` decibels", "amp"),
         "",
         "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
+        "",
+        "**Save the currently playing song**: `" + prefix + " save`",
     ].join("\n"));
+}
+
+/** 
+ * Converts the currently playing song to mp3
+ * and sends it to the text channel.
+ * @param {Discord.Message} message
+*/
+async function respondSave(message) {
+    const connection = connections.get(message.guild.id);
+    if (!connection) {
+        return message.channel.send("There's nothing playing rn " + smiley(mad));
+    }
+
+    const song = connection.currentSong;
+    const name = song.searchQuery + "-nightcore.mp3";
+
+    const stream = new Stream.PassThrough();
+    ffmpeg(song.file)
+        .format("mp3")
+        .pipe(stream);
+
+    message.channel.send(new Discord.MessageAttachment(stream, name));
 }
 
 /**
@@ -267,6 +296,11 @@ async function respondPlay(message) {
         }
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
+        connection.currentSong = {
+            file: tempFile,
+            title: video.title,
+            searchQuery: query,
+        };
 
         const ff = ffmpeg()
             .addInput(format.url)
