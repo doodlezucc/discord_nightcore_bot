@@ -189,6 +189,10 @@ function shuffle(a) {
     return a;
 }
 
+function isUnderThreeHours(durationString) {
+    return !(/([1-9][0-9]|[3-9]):.*:/).test(durationString);
+}
+
 /** @param {Discord.Message} message */
 async function respondPlay(message) {
     const voiceChannel = message.member.voice.channel;
@@ -277,7 +281,7 @@ async function respondPlay(message) {
         const search = await ytsr(query, {
             limit: 5,
         });
-        const video = search.items.find((item) => item.type === "video");
+        const video = search.items.find((item) => item.type === "video" && isUnderThreeHours(item.duration));
 
         if (!video) {
             return message.channel.send(
@@ -288,14 +292,19 @@ async function respondPlay(message) {
         let format;
         for (let fmt of info.formats) {
             if (fmt.hasAudio && !fmt.hasVideo) {
-                format = fmt;
-                break;
+                // Check if file size is smaller than 100 MB
+                const bytes = parseInt(fmt.contentLength);
+                const mb = bytes / 1024 / 1024;
+                if (mb < 100) {
+                    format = fmt;
+                    break;
+                }
             }
         }
 
         if (!format) {
             message.channel.send(
-                "**oh no** there's no audio source for `" + video.title + "` " + smiley(sad));
+                "**oh no** I can't find a good audio source for `" + video.title + "` " + smiley(sad));
             return (await searchMsg).delete();
         }
 
