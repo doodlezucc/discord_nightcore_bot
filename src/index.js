@@ -17,6 +17,19 @@ const {
     token,
 } = require("../config.json");
 
+const {
+    happy,
+    sad,
+    party,
+    mad,
+} = require("./smileys.json");
+
+function smiley(arr, bold) {
+    let s = arr[Math.floor(Math.random() * arr.length)];
+    if (bold) return "**" + s + "**";
+    return s;
+}
+
 const client = new Discord.Client();
 client.login(token);
 
@@ -66,12 +79,11 @@ class Connection {
  */
 async function handleMessage(message) {
     const cmd = message.content.substr(prefix.length).trim();
-    const args = cmd.split(" ");
-
-    if (!args.length) {
-        return message.channel.send("owo");
+    if (!cmd.length) {
+        return message.channel.send(smiley(happy, true));
     }
 
+    const args = cmd.split(" ");
     if (args.length == 1) {
         switch (args[0]) {
             case "help":
@@ -108,7 +120,7 @@ async function respondHelp(message) {
     if (Math.random() <= 0.5) examples.pop();
 
     message.channel.send([
-        "*I can help " + sender + "-chan!*",
+        "*I can help " + sender + "-chan! " + smiley(happy) + "*",
         "**Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
@@ -146,7 +158,7 @@ async function respondPlay(message) {
 
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
-        return message.channel.send("somebody pls give me permission to join voice channels.");
+        return message.channel.send(smiley(sad) + " somebody pls give me permission to join voice channels.");
     }
 
     const cmd = message.content.substr(prefix.length).trim();
@@ -162,14 +174,15 @@ async function respondPlay(message) {
         if (arg.startsWith("-") && arg.length > 1) {
             i++;
             if (i >= args.length) {
-                return message.channel.send("Parameter `" + arg + "` doesn't have a value!");
+                return message.channel.send(smiley(sad) + " Parameter `" + arg + "` doesn't have a value!");
             }
             const argValue = args[i];
 
             function parse(value) {
                 let parsed = parseFloat(value);
                 if (isNaN(parsed)) {
-                    return message.channel.send("Couldn't parse `" + arg + " " + argValue + "`!");
+                    message.channel.send(smiley(sad) + " Couldn't parse `" + arg + " " + argValue + "`!");
+                    return null;
                 }
                 return parsed;
             }
@@ -177,22 +190,27 @@ async function respondPlay(message) {
             switch (arg.substr(1)) {
                 case "r":
                 case "rate":
-                    rate = parse(argValue.replace("x", "")) ?? rate;
+                    rate = parse(argValue.replace("x", ""));
                     break;
                 case "amp":
                 case "amplify":
-                    amplify = parse(argValue) ?? amplify;
+                    amplify = parse(argValue);
                     break;
                 case "bass":
                 case "bassboost":
-                    bassboost = parse(argValue) ?? bassboost;
+                    bassboost = parse(argValue);
                     break;
                 default:
-                    return message.channel.send("Unknown parameter `" + arg + "`!");
+                    return message.channel.send(smiley(sad) + " Unknown parameter `" + arg + "`!");
             }
         } else {
             query += arg + " ";
         }
+    }
+    console.log(query, rate, bassboost, amplify);
+
+    if (rate == null || amplify == null || bassboost == null) {
+        return;
     }
 
     query = query.trim();
@@ -210,7 +228,7 @@ async function respondPlay(message) {
 
         if (!video) {
             return message.channel.send(
-                "**ok wow** I couldn't find any video at all how is that even possible?");
+                "**ok wow** I couldn't find any video at all how is that even possible? " + smiley(sad));
         }
 
         const info = await ytdl.getInfo(video.url);
@@ -224,7 +242,7 @@ async function respondPlay(message) {
 
         if (!format) {
             message.channel.send(
-                "**oh no** there's no audio source for `" + video.title + "`");
+                "**oh no** there's no audio source for `" + video.title + "` " + smiley(sad));
             return (await searchMsg).delete();
         }
         /**
@@ -239,7 +257,7 @@ async function respondPlay(message) {
             connection.dispatcher.end();
         }
 
-        message.channel.send("Have some nightcorified `" + video.title + "`!");
+        message.channel.send(smiley(party, true) + " Have some nightcorified `" + video.title + "`!");
 
         const sampleRate = format.audioSampleRate;
 
