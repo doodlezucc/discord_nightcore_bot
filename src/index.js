@@ -2,7 +2,6 @@ const Discord = require("discord.js");
 const ytdl = require("ytdl-core");
 const ytsr = require("ytsr");
 const ffmpeg = require("fluent-ffmpeg");
-const Stream = require("stream");
 const fs = require("fs");
 
 const jobsDir = "jobs/";
@@ -58,25 +57,24 @@ client.on("message", async message => {
     handleMessage(message);
 });
 
-const connections = new Map();
-
 class Connection {
-    /**
-     * @param {Discord.VoiceConnection} vconnect 
-     */
+    /** @param {Discord.VoiceConnection} vconnect */
     constructor(vconnect) {
         this.vc = vconnect;
-        /**
-         * @type {Discord.StreamDispatcher}
-         */
-        this.dispatcher = null;
         this.changingSong = false;
+
+        /** @type {Discord.StreamDispatcher} */
+        this.dispatcher = null;
+
+        /** @type {string} */
+        this.currentFile = null;
     }
 }
 
-/**
- * @param {Discord.Message} message
- */
+/** @type {Map<string, Connection>} */
+const connections = new Map();
+
+/** @param {Discord.Message} message */
 async function handleMessage(message) {
     const cmd = message.content.substr(prefix.length).trim();
     if (!cmd.length) {
@@ -95,9 +93,7 @@ async function handleMessage(message) {
 }
 
 
-/**
- * @param {Discord.Message} message
- */
+/** @param {Discord.Message} message */
 async function respondHelp(message) {
     function singleParam(param, description, alias) {
         let s = "        `-";
@@ -144,9 +140,7 @@ function shuffle(a) {
     return a;
 }
 
-/**
- * @param {Discord.Message} message
- */
+/** @param {Discord.Message} message */
 async function respondPlay(message) {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
@@ -247,9 +241,7 @@ async function respondPlay(message) {
                 "**oh no** there's no audio source for `" + video.title + "` " + smiley(sad));
             return (await searchMsg).delete();
         }
-        /**
-         * @type {Connection}
-         */
+
         let connection = connections.get(message.guild.id);
         if (!connection) {
             connection = new Connection(await voiceChannel.join());
@@ -290,13 +282,11 @@ async function respondPlay(message) {
         await new Promise(done => setTimeout(done, 1000));
         (await searchMsg).delete();
 
-        /**
-         * @type {fs.ReadStream}
-         */
+        /** @type {fs.ReadStream} */
         let readStream;
 
         const dispatcher = connection.vc.play(readStream = fs.createReadStream(tempFile), {
-            volume: bassboost ? 0.5 : 0.8,
+            volume: 0.8,
         })
             .on("finish", () => {
                 readStream.destroy();
