@@ -141,7 +141,12 @@ async function handleMessage(message) {
         await new Promise(done => setTimeout(done, 1000));
         (await searchMsg).delete();
 
-        const dispatcher = connection.vc.play(fs.createReadStream(tempFile), {
+        /**
+         * @type {fs.ReadStream}
+         */
+        let readStream;
+
+        const dispatcher = connection.vc.play(readStream = fs.createReadStream(tempFile), {
             volume: bassboost ? 0.5 : 0.8,
         })
             .on("finish", () => {
