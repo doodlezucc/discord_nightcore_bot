@@ -5,6 +5,11 @@ const ffmpeg = require("fluent-ffmpeg");
 const Stream = require("stream");
 const fs = require("fs");
 
+const jobsDir = "jobs/";
+if (!fs.existsSync(jobsDir)) {
+    fs.mkdirSync(jobsDir);
+}
+
 const {
     prefix,
     token,
@@ -94,9 +99,6 @@ async function handleMessage(message) {
     }
 
     try {
-        (await searchMsg).delete();
-        message.channel.send("Have some nightcorified `" + video.title + "`!");
-
         /**
          * @type {Connection}
          */
@@ -108,6 +110,8 @@ async function handleMessage(message) {
             connection.changingSong = true;
             connection.dispatcher.end();
         }
+
+        message.channel.send("Have some nightcorified `" + video.title + "`!");
 
         const sampleRate = format.audioSampleRate;
 
@@ -121,17 +125,22 @@ async function handleMessage(message) {
             filters.push("firequalizer=gain_entry='entry(0,0);entry(100,30);entry(150,0)'");
         }
 
-        const ff = ffmpeg()
+        const tempFile = jobsDir + video.id + "_" + Date.now();
+
+        ffmpeg()
             .addInput(format.url)
             .audioFilter(filters)
-            .format("opus");
+            .format("opus")
+            .pipe(fs.createWriteStream(tempFile));
 
-        //return ff.output("out.wav").run();
+        await new Promise(done => setTimeout(done, 1000));
+        (await searchMsg).delete();
 
-        const dispatcher = connection.vc.play(ff.pipe(new Stream.PassThrough()), {
+        const dispatcher = connection.vc.play(fs.createReadStream(tempFile), {
             volume: bassboost ? 0.5 : 0.8,
         })
             .on("finish", () => {
+                fs.unlink(tempFile, () => null);
                 if (!connection.changingSong) {
                     voiceChannel.leave();
                     connections.delete(message.guild.id);
