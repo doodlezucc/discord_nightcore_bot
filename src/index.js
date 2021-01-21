@@ -87,11 +87,15 @@ async function handleMessage(message) {
 
     const args = cmd.split(" ");
     if (args.length == 1) {
-        switch (args[0]) {
+        switch (args[0].toLowerCase()) {
             case "help":
                 return respondHelp(message);
             case "save":
                 return respondSave(message);
+            case "quit":
+            case "stop":
+            case "leave":
+                return respondLeave(message);
         }
     }
 
@@ -102,7 +106,7 @@ async function handleMessage(message) {
 async function respondHelp(message) {
     function singleParam(param, description, alias) {
         let s = "        `-";
-        if (alias) s += alias + "`/`-";
+        if (alias) s += alias + "/-";
         return s + param + "` : " + description;
     }
 
@@ -122,7 +126,7 @@ async function respondHelp(message) {
 
     message.channel.send([
         "*I can help " + sender + "-chan! " + smiley(happy) + "*",
-        "**Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
+        ":arrow_forward: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
         singleParam("rate <rate>", "Plays the song at `rate` speed (defaults to " + defaultRate + "x)", "r"),
@@ -131,7 +135,9 @@ async function respondHelp(message) {
         "",
         "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
         "",
-        "**Save the currently playing song**: `" + prefix + " save`",
+        ":floppy_disk: **Save the currently playing song**: `" + prefix + " save`",
+        "",
+        ":wave: **Stop playback**: `" + prefix + " leave/stop/quit`",
     ].join("\n"));
 }
 
@@ -155,6 +161,20 @@ async function respondSave(message) {
         .pipe(stream);
 
     message.channel.send(new Discord.MessageAttachment(stream, name));
+}
+
+/** 
+ * Stops playback.
+ * @param {Discord.Message} message
+*/
+async function respondLeave(message) {
+    const connection = connections.get(message.guild.id);
+    if (!connection) {
+        return message.channel.send("wtf I'm not even doing anything");
+    }
+
+    connection.dispatcher.end();
+    message.channel.send("oh- okay... " + smiley(sad));
 }
 
 /**
@@ -196,12 +216,12 @@ async function respondPlay(message) {
         const arg = args[i];
         if (arg.startsWith("-") && arg.length > 1) {
             i++;
-            if (i >= args.length) {
-                return message.channel.send(smiley(sad) + " Parameter `" + arg + "` doesn't have a value!");
-            }
             const argValue = args[i];
 
             function parse(value) {
+                if (i >= args.length) {
+                    return message.channel.send(smiley(sad) + " Parameter `" + arg + "` doesn't have a value!");
+                }
                 let parsed = parseFloat(value);
                 if (isNaN(parsed)) {
                     message.channel.send(smiley(sad) + " Couldn't parse `" + arg + " " + argValue + "`!");
