@@ -295,13 +295,27 @@ async function respondPlay(message) {
         "Searching for `" + query + "`... _kinda weird tbh but I don't judge_"
     );
 
+    function onPlayError(err) {
+        console.log('Error executing "' + message.content + '":');
+        console.error(err);
+    }
+
     try {
         const search = await ytsr(query, {
             limit: 5,
         });
-        const video = search.items.find((item) => item.type === "video" && isUnderThreeHours(item.duration));
+
+        let tooLong = false;
+        const video = search.items.find((item) => {
+            const isGoodDuration = isUnderThreeHours(item.duration);
+            if (!isGoodDuration) tooLong = true;
+            return item.type === "video" && isGoodDuration;
+        });
 
         if (!video) {
+            if (tooLong) {
+                return message.channel.send("**uhm** wow it's so long " + smiley(mad));
+            }
             return message.channel.send(
                 "**ok wow** I couldn't find any video at all how is that even possible? " + smiley(sad));
         }
@@ -326,6 +340,9 @@ async function respondPlay(message) {
             return (await searchMsg).delete();
         }
 
+        message.channel.send("Have some nightcorified `" + video.title + "` " + smiley(party, true));
+
+        // Join voice channel
         let connection = connections.get(message.guild.id);
         if (!connection) {
             connection = new Connection(await voiceChannel.join());
@@ -338,8 +355,7 @@ async function respondPlay(message) {
             }
         }
 
-        message.channel.send("Have some nightcorified `" + video.title + "` " + smiley(party, true));
-
+        // Initialize ffmpeg
         const sampleRate = format.audioSampleRate;
 
         let filters = [
@@ -366,15 +382,17 @@ async function respondPlay(message) {
             .format("opus")
             .on("error", (err) => {
                 if (!err.message.includes("SIGTERM")) {
-                    console.error(err);
+                    onPlayError(err);
                 }
             });
         ff.pipe(fs.createWriteStream(tempFile), { end: true });
 
-        // register audio download as traffic
+        // Register audio download as traffic
         traffic.onRead(parseInt(format.contentLength));
 
-        await new Promise(done => setTimeout(done, 1000));
+        // Give the server a head start on writing the nightcorified file.
+        // If this timeout is set too low, an end of stream occurs.
+        await new Promise(done => setTimeout(done, 1500));
         (await searchMsg).delete();
 
         const readStream = fs.createReadStream(tempFile);
@@ -399,7 +417,7 @@ async function respondPlay(message) {
             .on("error", error => console.error(error));
         connection.dispatcher = dispatcher;
     } catch (err) {
-        console.error(err);
+        onPlayError(err);
         connections.delete(message.guild.id);
         return message.channel.send(err);
     }
