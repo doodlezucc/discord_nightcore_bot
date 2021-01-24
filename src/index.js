@@ -54,7 +54,7 @@ client.once("disconnect", () => {
 
 client.on("message", async message => {
     if (message.author.bot) return;
-    if (!message.content.startsWith(prefix)) return;
+    if (!message.content.toLowerCase().startsWith(prefix)) return;
 
     handleMessage(message);
 });
@@ -257,11 +257,11 @@ async function respondPlay(message) {
                 return parsed;
             }
 
-            switch (arg.substr(1)) {
+            switch (arg.substr(1).toLowerCase()) {
                 case "r":
                 case "rate":
                 case "speed":
-                    rate = parse(argValue.replace("x", ""), 0.5, 16);
+                    rate = parse(argValue, 0.5, 16);
                     break;
                 case "amp":
                 case "amplify":
