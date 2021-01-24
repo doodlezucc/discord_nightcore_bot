@@ -119,10 +119,10 @@ async function handleMessage(message) {
 
 /** @param {Discord.Message} message */
 async function respondHelp(message) {
-    function singleParam(param, description, alias) {
-        let s = "        `-";
-        if (alias) s += alias + "`/`-";
-        return s + param + "` : " + description;
+    function singleParam(aliases, description) {
+        return s = "        `"
+            + aliases.map((a) => "-" + a).join("`/`")
+            + "` : " + description;
     }
 
     function randomRange(start, end) {
@@ -144,9 +144,9 @@ async function respondHelp(message) {
         ":musical_note: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any of the following, separated by spaces:",
-        singleParam("rate <rate>", "Plays the song at `rate` speed (default is " + defaultRate + "x)", "r"),
-        singleParam("bassboost <dB>", "Boosts the bass frequencies by `dB` decibels", "bass"),
-        singleParam("amplify <dB>", "Amplifies the song by `dB` decibels", "volume`/`-amp"),
+        singleParam(["r", "rate", "speed <rate>"], "Plays the song at `rate` speed (default is " + defaultRate + "x)"),
+        singleParam(["b", "bass", "bassboost <dB>"], "Boosts the bass frequencies by `dB` decibels"),
+        singleParam(["amp", "amplify", "volume <dB>"], "Amplifies the song by `dB` decibels"),
         "",
         "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
         "",
@@ -260,13 +260,15 @@ async function respondPlay(message) {
             switch (arg.substr(1)) {
                 case "r":
                 case "rate":
+                case "speed":
                     rate = parse(argValue.replace("x", ""), 0.5, 16);
                     break;
-                case "volume":
                 case "amp":
                 case "amplify":
+                case "volume":
                     amplify = parse(argValue, -20, 60);
                     break;
+                case "b":
                 case "bass":
                 case "bassboost":
                     bassboost = parse(argValue, 0, 60);
