@@ -49,7 +49,7 @@ client.once("ready", () => {
         status: "online",
         activity: {
             type: "PLAYING",
-            name: prefix
+            name: prefix + " help"
         }
     });
 });
@@ -101,9 +101,10 @@ async function handleMessage(message) {
                 return respondHelp(message);
             case "save":
                 return respondSave(message);
+            case "leave":
             case "quit":
             case "stop":
-            case "leave":
+            case "ouch":
                 return respondLeave(message);
         }
     } else if (args.length == 2 && args[0] === "debug") {
@@ -178,7 +179,7 @@ async function respondHelp(message) {
         "",
         ":floppy_disk: **Save the currently playing song**: `" + prefix + " save`",
         "",
-        ":wave: **Stop playback**: `" + prefix + " leave/stop/quit`",
+        ":wave: **Stop playback**: `" + prefix + " leave/stop/quit/ouch`",
     ].join("\n"));
 }
 
@@ -369,7 +370,12 @@ async function respondPlay(message) {
             return (await searchMsg).delete();
         }
 
-        message.channel.send("Have some nightcorified `" + video.title + "` " + smiley(party, true));
+        message.channel.send(new Discord.MessageEmbed()
+            .setColor("#51cdd7")
+            .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
+            .setURL(video.url)
+            .setThumbnail(video.bestThumbnail.url)
+            .setDescription("**Playing right now! " + smiley(party) + "**"));
 
         // Join voice channel
         let connection = connections.get(message.guild.id);
