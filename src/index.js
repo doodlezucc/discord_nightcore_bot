@@ -18,15 +18,23 @@ const {
     token,
 } = require("../config.json");
 
+const smileys = require("./smileys.json");
 const {
     happy,
     sad,
     party,
     mad,
-} = require("./smileys.json");
+    nervous,
+} = smileys;
+
+function markdownEscape(s) {
+    // https://stackoverflow.com/a/56567342
+    return s.replace(/((\_|\*|\~|\`|\|)+)/g, "\\$1");
+}
 
 function smiley(arr, bold) {
     let s = arr[Math.floor(Math.random() * arr.length)];
+    s = markdownEscape(s);
     if (bold) return "**" + s + "**";
     return s;
 }
@@ -99,22 +107,40 @@ async function handleMessage(message) {
                 return respondLeave(message);
         }
     } else if (args.length == 2 && args[0] === "debug") {
-        if (args[1] === "traffic") {
-            const read = traffic.getRead();
-            const written = traffic.getWritten();
-
-            function toLine(bytes) {
-                return bytes + " bytes (" + (bytes / 1024 / 1024).toFixed(1) + "MB)";
-            }
-
-            return message.channel.send([
-                "Read: " + toLine(read),
-                "Written: " + toLine(written),
-            ].join("\n"));
+        switch (args[1]) {
+            case "smileys":
+                return respondDebugSmileys(message);
+            case "traffic":
+                return respondDebugTraffic(message);
         }
     }
 
     respondPlay(message);
+}
+
+/** @param {Discord.Message} message */
+async function respondDebugSmileys(message) {
+    let s = "";
+    for (let group in smileys) {
+        s += "\n\n**" + group + "**:\n";
+        s += smileys[group].map((sm) => markdownEscape(sm)).join("\n");
+    }
+    return message.channel.send(s.trim());
+}
+
+/** @param {Discord.Message} message */
+async function respondDebugTraffic(message) {
+    const read = traffic.getRead();
+    const written = traffic.getWritten();
+
+    function toLine(bytes) {
+        return bytes + " bytes (" + (bytes / 1024 / 1024).toFixed(1) + "MB)";
+    }
+
+    return message.channel.send([
+        "Read: " + toLine(read),
+        "Written: " + toLine(written),
+    ].join("\n"));
 }
 
 /** @param {Discord.Message} message */
@@ -314,7 +340,10 @@ async function respondPlay(message) {
 
         if (!video) {
             if (tooLong) {
-                return message.channel.send("**uhm** wow it's so long " + smiley(mad));
+                message.channel.send("**holy frick...** it's so long " + smiley(nervous, true));
+                return setTimeout(() => {
+                    message.channel.send("I- I don't think I can fit this in my storage, sowwy " + smiley(sad));
+                }, 1000);
             }
             return message.channel.send(
                 "**ok wow** I couldn't find any video at all how is that even possible? " + smiley(sad));
@@ -419,6 +448,9 @@ async function respondPlay(message) {
     } catch (err) {
         onPlayError(err);
         connections.delete(message.guild.id);
-        return message.channel.send(err);
+        message.channel.send(
+            "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
+            + "there was some sort of error " + smiley(nervous)
+        );
     }
 }
