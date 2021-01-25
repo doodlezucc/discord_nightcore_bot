@@ -316,6 +316,11 @@ async function respondPlay(message) {
     if (!query.length) {
         return message.channel.send("B-b-but you forgot the search query... " + smiley(sad));
     }
+
+    if (query.startsWith("https://") && query.includes("&")) {
+        query = query.substr(0, query.indexOf("&"));
+    }
+
     //console.log(query, rate, bassboost, amplify);
 
     const searchMsg = message.channel.send(
