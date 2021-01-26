@@ -100,16 +100,21 @@ class Connection {
     constructor(vconnect, textChannel) {
         this.vc = vconnect;
         this.textChannel = textChannel;
-        this.leaveNow = false;
 
         /** @type {Discord.StreamDispatcher} */
         this.dispatcher = null;
 
         /** @type {Song[]} */
         this.queue = [];
+
+        this.timeout = null;
     }
 
     addToQueue(song) {
+        if (this.timeout) {
+            clearTimeout(this.timeout);
+        }
+
         this.queue.push(song);
         if (this.queue.length == 1) {
             playSong(this);
@@ -117,10 +122,21 @@ class Connection {
     }
 
     onSongEnd() {
-        this.queue.shift();
+        if (this.queue.length) this.queue.shift();
+
         if (this.queue.length) {
             playSong(this);
+        } else {
+            // A friend wanted this to be exactly 3:32.
+            this.timeout = setTimeout(() => {
+                this.onLeave();
+            }, (3 * 60 + 32) * 1000);
         }
+    }
+
+    onLeave() {
+        this.vc.disconnect();
+        connections.delete(this.textChannel.guild.id);
     }
 
     skip() {
@@ -269,9 +285,8 @@ async function respondStop(message, leave) {
 
     if (leave) connection.vc.disconnect();
 
-    connection.leaveNow = true;
+    connection.queue = [];
     connection.dispatcher.end();
-    connections.delete(message.guild.id);
 
     message.channel.send("oh- okay... " + smiley(sad));
 }
@@ -302,10 +317,11 @@ function shuffle(a) {
     return a;
 }
 
+/** @param {Discord.TextChannel} textChannel */
 function onPlayError(search, textChannel, err) {
     console.log('Error executing "' + search + '":');
     console.error(err);
-    textChannel.send(
+    textChannel?.send(
         "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
         + "there was some sort of error " + smiley(sad)
     );
@@ -434,7 +450,7 @@ async function respondPlay(message) {
         // Join voice channel
         let connection = connections.get(message.guild.id);
         if (!connection) {
-            connection = new Connection(await voiceChannel.join());
+            connection = new Connection(await voiceChannel.join(), message.channel);
             connections.set(message.guild.id, connection);
         } else {
             if (voiceChannel.id !== connection.vc.channel.id) {
@@ -505,10 +521,10 @@ async function playSong(connection) {
             "aresample=" + sampleRate,
         ];
         if (song.effects.bassboost != 0) {
-            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + bassboost + ");entry(350,0)'");
+            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + song.effects.bassboost + ");entry(350,0)'");
         }
         if (song.effects.amplify != 0) {
-            filters.push("volume=" + amplify + "dB");
+            filters.push("volume=" + song.effects.amplify + "dB");
         }
 
         const ff = ffmpeg()
@@ -540,13 +556,11 @@ async function playSong(connection) {
                 ff.kill("SIGTERM");
                 fs.unlinkSync(song.file);
 
-                if (!connection.leaveNow) {
-                    connection.onSongEnd();
-                }
+                connection.onSongEnd();
             })
             .on("error", error => console.error(error));
         connection.dispatcher = dispatcher;
     } catch (err) {
-        onPlayError(connection.textChannel, err);
+        onPlayError(song.searchQuery, connection.textChannel, err);
     }
 }
