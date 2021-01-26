@@ -238,12 +238,15 @@ async function respondHelp(message) {
 */
 async function respondSave(message) {
     const connection = connections.get(message.guild.id);
-    if (!connection) {
+    if (!connection || !connection.queue.length) {
         return message.channel.send("There's nothing playing rn, dingus " + smiley(mad));
     }
 
-    const song = connection.currentSong;
+    const song = connection.queue[0];
     const name = song.searchQuery + "-nightcore.mp3";
+
+    // If this isn't awaited, not the entire stream is sent.
+    await message.channel.send("Converting to MP3!");
 
     const stream = new Stream.PassThrough();
     stream.on("data", traffic.onWrite);
@@ -260,8 +263,8 @@ async function respondSave(message) {
 */
 async function respondStop(message, leave) {
     const connection = connections.get(message.guild.id);
-    if (!connection) {
-        message.channel.send("wtf I'm not even doing anything");
+    if (!connection || (!connection.queue.length && !leave)) {
+        return message.channel.send("wtf I'm not even doing anything");
     }
 
     if (leave) connection.vc.disconnect();
