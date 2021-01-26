@@ -100,7 +100,7 @@ class Connection {
     constructor(vconnect, textChannel) {
         this.vc = vconnect;
         this.textChannel = textChannel;
-        this.changingSong = false;
+        this.leaveNow = false;
 
         /** @type {Discord.StreamDispatcher} */
         this.dispatcher = null;
@@ -124,7 +124,6 @@ class Connection {
     }
 
     skip() {
-        this.changingSong = true;
         this.dispatcher.end();
     }
 }
@@ -144,13 +143,15 @@ async function handleMessage(message) {
         switch (args[0].toLowerCase()) {
             case "help":
                 return respondHelp(message);
-            case "save":
-                return respondSave(message);
-            case "leave":
-            case "quit":
+            case "skip":
+                return respondSkip(message);
             case "stop":
             case "ouch":
-                return respondLeave(message);
+                return respondStop(message);
+            case "leave":
+                return respondStop(message, true);
+            case "save":
+                return respondSave(message);
         }
     } else if (args.length == 2 && args[0] === "debug") {
         switch (args[1]) {
@@ -222,9 +223,11 @@ async function respondHelp(message) {
         "",
         "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
         "",
-        ":floppy_disk: **Save the currently playing song**: `" + prefix + " save`",
+        ":next_track: **Skip the current song**: `" + prefix + " skip`",
         "",
-        ":wave: **Stop playback**: `" + prefix + " leave/stop/quit/ouch`",
+        ":wave: **Stop playback**: `" + prefix + " stop/ouch/leave`",
+        "",
+        ":floppy_disk: **Save the currently playing song**: `" + prefix + " save`",
     ].join("\n"));
 }
 
@@ -255,14 +258,33 @@ async function respondSave(message) {
  * Stops playback.
  * @param {Discord.Message} message
 */
-async function respondLeave(message) {
+async function respondStop(message, leave) {
     const connection = connections.get(message.guild.id);
     if (!connection) {
-        return message.channel.send("wtf I'm not even doing anything");
+        message.channel.send("wtf I'm not even doing anything");
     }
 
+    if (leave) connection.vc.disconnect();
+
+    connection.leaveNow = true;
     connection.dispatcher.end();
+    connections.delete(message.guild.id);
+
     message.channel.send("oh- okay... " + smiley(sad));
+}
+
+/** 
+ * Skips the current song.
+ * @param {Discord.Message} message
+*/
+async function respondSkip(message) {
+    const connection = connections.get(message.guild.id);
+    if (!connection || !connection.queue.length) {
+        return message.channel.send("afaik there's nothing playing right now.");
+    }
+
+    message.channel.send("Skipping this trash! " + smiley(happy, true));
+    connection.skip();
 }
 
 /**
@@ -275,6 +297,15 @@ function shuffle(a) {
         [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
+}
+
+function onPlayError(search, textChannel, err) {
+    console.log('Error executing "' + search + '":');
+    console.error(err);
+    textChannel.send(
+        "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
+        + "there was some sort of error " + smiley(sad)
+    );
 }
 
 function isUnderThreeHours(durationString) {
@@ -372,11 +403,6 @@ async function respondPlay(message) {
         "Searching for `" + query + "`... _kinda weird tbh but I don't judge_"
     );
 
-    function onPlayError(err) {
-        console.log('Error executing "' + message.content + '":');
-        console.error(err);
-    }
-
     try {
         const search = await ytsr(query, {
             limit: 5,
@@ -416,7 +442,7 @@ async function respondPlay(message) {
                 playMsg = "Playing after "
                     + (connection.queue.length >= 2
                         ? (connection.queue.length + " songs!")
-                        : "this song!");
+                        : "1 song!");
             }
         }
 
@@ -439,12 +465,7 @@ async function respondPlay(message) {
         await new Promise(done => setTimeout(done, 1000));
         (await searchMsg).delete();
     } catch (err) {
-        onPlayError(err);
-        connections.delete(message.guild.id);
-        message.channel.send(
-            "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
-            + "there was some sort of error " + smiley(nervous)
-        );
+        onPlayError(message.content, message.channel, err);
     }
 }
 
@@ -452,71 +473,77 @@ async function respondPlay(message) {
 async function playSong(connection) {
     const song = connection.queue[0];
 
-    const info = await ytdl.getInfo(song.url);
-    let format = {
-        contentLength: Infinity,
-    };
-    for (let fmt of info.formats) {
-        if (fmt.hasAudio && !fmt.hasVideo) {
-            fmt.contentLength = parseInt(fmt.contentLength);
-            // Get smallest audio-only file
-            if (fmt.contentLength < format.contentLength) {
-                format = fmt;
+    try {
+        const info = await ytdl.getInfo(song.url);
+        let format = {
+            contentLength: Infinity,
+        };
+        for (let fmt of info.formats) {
+            if (fmt.hasAudio && !fmt.hasVideo) {
+                fmt.contentLength = parseInt(fmt.contentLength);
+                // Get smallest audio-only file
+                if (fmt.contentLength < format.contentLength) {
+                    format = fmt;
+                }
             }
         }
-    }
 
-    if (!format) {
-        connection.textChannel.send(
-            "**oh no** I can't find a good audio source for `" + video.title + "` " + smiley(sad));
-        return connection.skip();
-    }
+        if (!format) {
+            connection.textChannel.send(
+                "**oh no** I can't find a good audio source for `" + video.title + "` " + smiley(sad));
+            return connection.skip();
+        }
 
-    // Initialize ffmpeg
-    const sampleRate = format.audioSampleRate;
+        // Initialize ffmpeg
+        const sampleRate = format.audioSampleRate;
 
-    let filters = [
-        "asetrate=" + sampleRate + "*" + song.effects.rate,
-        "aresample=" + sampleRate,
-    ];
-    if (song.effects.bassboost != 0) {
-        filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + bassboost + ");entry(350,0)'");
-    }
-    if (song.effects.amplify != 0) {
-        filters.push("volume=" + amplify + "dB");
-    }
+        let filters = [
+            "asetrate=" + sampleRate + "*" + song.effects.rate,
+            "aresample=" + sampleRate,
+        ];
+        if (song.effects.bassboost != 0) {
+            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + bassboost + ");entry(350,0)'");
+        }
+        if (song.effects.amplify != 0) {
+            filters.push("volume=" + amplify + "dB");
+        }
 
-    const ff = ffmpeg()
-        .addInput(format.url)
-        .audioFilter(filters)
-        .format("opus")
-        .on("error", (err) => {
-            if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
-                onPlayError(err);
-            }
-        });
-    ff.pipe(fs.createWriteStream(song.file), { end: true });
+        const ff = ffmpeg()
+            .addInput(format.url)
+            .audioFilter(filters)
+            .format("opus")
+            .on("error", (err) => {
+                if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
+                    onPlayError(song.searchQuery, connection.textChannel, err);
+                }
+            });
+        ff.pipe(fs.createWriteStream(song.file), { end: true });
 
-    // Register audio download as traffic
-    traffic.onRead(parseInt(format.contentLength));
+        // Register audio download as traffic
+        traffic.onRead(parseInt(format.contentLength));
 
-    // Give the server a head start on writing the nightcorified file.
-    // If this timeout is set too low, an end of stream occurs.
-    await new Promise(done => setTimeout(done, 1500));
+        // Give the server a head start on writing the nightcorified file.
+        // If this timeout is set too low, an end of stream occurs.
+        await new Promise(done => setTimeout(done, 1500));
 
-    const readStream = fs.createReadStream(song.file);
-    readStream.on("data", traffic.onWrite);
+        const readStream = fs.createReadStream(song.file);
+        readStream.on("data", traffic.onWrite);
 
-    const dispatcher = connection.vc.play(readStream, {
-        volume: 0.8,
-    })
-        .on("finish", () => {
-            readStream.destroy();
-            ff.kill("SIGTERM");
-            fs.unlinkSync(song.file);
-
-            connection.onSongEnd();
+        const dispatcher = connection.vc.play(readStream, {
+            volume: 0.8,
         })
-        .on("error", error => console.error(error));
-    connection.dispatcher = dispatcher;
+            .on("finish", () => {
+                readStream.destroy();
+                ff.kill("SIGTERM");
+                fs.unlinkSync(song.file);
+
+                if (!connection.leaveNow) {
+                    connection.onSongEnd();
+                }
+            })
+            .on("error", error => console.error(error));
+        connection.dispatcher = dispatcher;
+    } catch (err) {
+        onPlayError(connection.textChannel, err);
+    }
 }
