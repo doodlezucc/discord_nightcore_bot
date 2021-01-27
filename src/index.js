@@ -53,11 +53,16 @@ client.once("ready", () => {
         }
     });
 });
-client.once("reconnecting", () => {
+client.on("reconnecting", () => {
     console.log("Reconnecting!");
 });
-client.once("disconnect", () => {
+client.on("disconnect", () => {
     console.log("Disconnect!");
+});
+client.on("voiceStateUpdate", (_, state) => {
+    if (!state.channel) {
+        connections.get(state.guild.id)?.onLeave();
+    }
 });
 
 client.on("message", async message => {
