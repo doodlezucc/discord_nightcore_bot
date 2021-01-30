@@ -306,7 +306,7 @@ async function respondSkip(message) {
         return message.channel.send("afaik there's nothing playing right now.");
     }
 
-    message.channel.send("Skipping this trash! " + smiley(happy, true));
+    message.channel.send("Skipping! " + smiley(happy, true));
     connection.skip();
 }
 
