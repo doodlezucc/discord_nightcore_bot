@@ -60,7 +60,7 @@ client.on("disconnect", () => {
     console.log("Disconnect!");
 });
 client.on("voiceStateUpdate", (_, state) => {
-    if (!state.channel) {
+    if (!state.channel && client.user.id === state.member.id) {
         connections.get(state.guild.id)?.onLeave();
     }
 });
