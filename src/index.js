@@ -470,12 +470,15 @@ async function respondPlay(message) {
             }
         }
 
+        const duration = video.duration;
+
         message.channel.send(new Discord.MessageEmbed()
             .setColor("#51cdd7")
             .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
             .setURL(video.url)
             .setThumbnail(video.bestThumbnail.url)
-            .setDescription("**" + playMsg + " " + smiley(party) + "**"));
+            .setDescription("**" + playMsg + " " + smiley(party) + "**"
+                + "\n`Duration: " + duration + "`"));
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
         connection.addToQueue(new Song(
