@@ -72,6 +72,10 @@ client.on("message", async message => {
     handleMessage(message);
 });
 
+const reactions = {
+    nowPlaying: "🎵"
+};
+
 class Effects {
     constructor(rate, amplify, bassboost) {
         this.rate = rate;
@@ -88,14 +92,16 @@ class Song {
      * @param {number} duration Song duration in seconds.
      * @param {string} searchQuery
      * @param {Effects} effects
+     * @param {Discord.Message} message
      */
-    constructor(file, title, url, duration, searchQuery, effects) {
+    constructor(file, title, url, duration, searchQuery, effects, message) {
         this.file = file;
         this.title = title;
         this.url = url;
         this.duration = duration;
         this.searchQuery = searchQuery;
         this.effects = effects;
+        this.message = message;
     }
 }
 
@@ -475,9 +481,9 @@ async function respondPlay(message) {
             }
         }
 
-        const duration = secondsToDuration(durationToSeconds(video.duration) / rate);
+        const duration = durationToSeconds(video.duration) / rate;
         let msg = "**" + playMsg + " " + smiley(party) + "**"
-            + "\nDuration: `" + duration + "`";
+            + "\nDuration: `" + secondsToDuration(duration) + "`";
 
         if (connection.queue.length) {
             let secondsUntil = connection.queue.reduce((seconds, song) => seconds + song.duration, 0);
@@ -485,7 +491,7 @@ async function respondPlay(message) {
             msg += " / Time until playing: `" + secondsToDuration(secondsUntil) + "`";
         }
 
-        message.channel.send(new Discord.MessageEmbed()
+        const sent = await message.channel.send(new Discord.MessageEmbed()
             .setColor("#51cdd7")
             .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
             .setURL(video.url)
@@ -497,9 +503,10 @@ async function respondPlay(message) {
             tempFile,
             video.title,
             video.url,
-            durationToSeconds(duration),
+            duration,
             query,
             new Effects(rate, amplify, bassboost),
+            sent,
         ));
 
         await new Promise(done => setTimeout(done, 1000));
@@ -575,6 +582,8 @@ async function playSong(connection) {
             filters.push("volume=" + song.effects.amplify + "dB");
         }
 
+        const reaction = song.message.react(reactions.nowPlaying);
+
         const ff = ffmpeg()
             .addInput(format.url)
             .audioFilter(filters)
@@ -587,6 +596,7 @@ async function playSong(connection) {
         ff.pipe(fs.createWriteStream(song.file), { end: true });
 
         // Register audio download as traffic
+        // (might count too much if users decide to skip midway through)
         traffic.onRead(parseInt(format.contentLength));
 
         // Give the server a head start on writing the nightcorified file.
@@ -599,11 +609,12 @@ async function playSong(connection) {
         const dispatcher = connection.vc.play(readStream, {
             volume: 0.8,
         })
-            .on("finish", () => {
+            .on("finish", async () => {
                 readStream.destroy();
                 ff.kill("SIGTERM");
                 fs.unlinkSync(song.file);
 
+                (await reaction).remove();
                 connection.onSongEnd();
             })
             .on("error", error => console.error(error));
