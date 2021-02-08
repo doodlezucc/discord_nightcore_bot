@@ -217,6 +217,7 @@ async function respondDebugTraffic(message) {
     }
 
     return message.channel.send([
+        "**Approximate traffic this month**",
         "Read: " + toLine(read),
         "Written: " + toLine(written),
     ].join("\n"));
@@ -614,8 +615,8 @@ async function playSong(connection) {
                 ff.kill("SIGTERM");
                 fs.unlinkSync(song.file);
 
-                (await reaction).remove();
                 connection.onSongEnd();
+                (await reaction).remove();
             })
             .on("error", error => console.error(error));
         connection.dispatcher = dispatcher;

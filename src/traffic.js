@@ -1,6 +1,12 @@
 const fs = require("fs");
 
-const trafficFile = "./traffic.json";
+const directory = "./traffic";
+
+function trafficFile() {
+    const date = new Date();
+    const month = date.getUTCFullYear() + "-" + (date.getUTCMonth() + 1 + "").padStart(2, "0");
+    return directory + "/traffic-" + month + ".json";
+}
 
 let changed = false;
 let traffic = {
@@ -8,8 +14,11 @@ let traffic = {
     written: 0,
 };
 
-if (fs.existsSync(trafficFile)) {
-    traffic = JSON.parse(fs.readFileSync(trafficFile, { encoding: "utf8" }));
+if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory);
+}
+if (fs.existsSync(trafficFile())) {
+    traffic = JSON.parse(fs.readFileSync(trafficFile(), { encoding: "utf8" }));
 }
 
 function onChange() {
@@ -28,7 +37,7 @@ exports.getRead = () => traffic.read;
 exports.getWritten = () => traffic.written;
 
 exports.save = function save() {
-    fs.writeFileSync(trafficFile, JSON.stringify(traffic, null, 2));
+    fs.writeFileSync(trafficFile(), JSON.stringify(traffic, null, 2));
 }
 
 setInterval(() => {
