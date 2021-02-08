@@ -85,13 +85,15 @@ class Song {
      * @param {string} file
      * @param {string} title
      * @param {string} url
+     * @param {number} duration Song duration in seconds.
      * @param {string} searchQuery
      * @param {Effects} effects
      */
-    constructor(file, title, url, searchQuery, effects) {
+    constructor(file, title, url, duration, searchQuery, effects) {
         this.file = file;
         this.title = title;
         this.url = url;
+        this.duration = duration;
         this.searchQuery = searchQuery;
         this.effects = effects;
     }
@@ -111,6 +113,9 @@ class Connection {
 
         /** @type {Song[]} */
         this.queue = [];
+
+        /** @type {number} */
+        this.songStartTimestamp = 0;
 
         this.timeout = null;
     }
@@ -470,21 +475,29 @@ async function respondPlay(message) {
             }
         }
 
-        const duration = video.duration;
+        const duration = secondsToDuration(durationToSeconds(video.duration) / rate);
+        let msg = "**" + playMsg + " " + smiley(party) + "**"
+            + "\nDuration: `" + duration + "`";
+
+        if (connection.queue.length) {
+            let secondsUntil = connection.queue.reduce((seconds, song) => seconds + song.duration, 0);
+            secondsUntil -= (Date.now() - connection.songStartTimestamp) / 1000;
+            msg += " / Time until playing: `" + secondsToDuration(secondsUntil) + "`";
+        }
 
         message.channel.send(new Discord.MessageEmbed()
             .setColor("#51cdd7")
             .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
             .setURL(video.url)
             .setThumbnail(video.bestThumbnail.url)
-            .setDescription("**" + playMsg + " " + smiley(party) + "**"
-                + "\n`Duration: " + duration + "`"));
+            .setDescription(msg));
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
         connection.addToQueue(new Song(
             tempFile,
             video.title,
             video.url,
+            durationToSeconds(duration),
             query,
             new Effects(rate, amplify, bassboost),
         ));
@@ -496,9 +509,36 @@ async function respondPlay(message) {
     }
 }
 
+/** @param {String} d */
+function durationToSeconds(d) {
+    const parts = d.split(":").reverse();
+    let sec = parseInt(parts[0]);
+    if (parts.length >= 2) {
+        sec += 60 * parts[1];
+        if (parts.length >= 3) sec += 60 * 60 * parts[2];
+    }
+    return sec;
+}
+
+/** @param {number} sec */
+function secondsToDuration(sec) {
+    sec = Math.floor(sec);
+    const secMod = sec % 60;
+    const min = Math.floor(sec / 60) % 60;
+    let out = ":" + secMod.toString().padStart(2, "0");
+    if (sec >= 60 * 60) {
+        const hours = Math.floor(sec / 60 / 60);
+        out = hours + ":" + min.toString().padStart(2, "0") + out;
+    } else {
+        out = min + out;
+    }
+    return out;
+}
+
 /** @param {Connection} connection */
 async function playSong(connection) {
     const song = connection.queue[0];
+    connection.songStartTimestamp = Date.now();
 
     try {
         const info = await ytdl.getInfo(song.url);
@@ -570,5 +610,6 @@ async function playSong(connection) {
         connection.dispatcher = dispatcher;
     } catch (err) {
         onPlayError(song.searchQuery, connection.textChannel, err);
+        connection.onSongEnd();
     }
 }
