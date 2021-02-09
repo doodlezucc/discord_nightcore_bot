@@ -489,7 +489,7 @@ async function respondPlay(message) {
         if (connection.queue.length) {
             let secondsUntil = connection.queue.reduce((seconds, song) => seconds + song.duration, 0);
             secondsUntil -= (Date.now() - connection.songStartTimestamp) / 1000;
-            msg += " / Time until playing: `" + secondsToDuration(secondsUntil) + "`";
+            msg += " / Playing in: `" + secondsToDuration(secondsUntil) + "`";
         }
 
         const sent = await message.channel.send(new Discord.MessageEmbed()
