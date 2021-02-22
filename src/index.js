@@ -441,11 +441,13 @@ async function respondPlay(message) {
 
     try {
         const search = await ytsr(query, {
-            limit: 5,
+            limit: 10,
         });
 
         let tooLong = false;
         const video = search.items.find((item) => {
+            if (item.isLive) return false;
+
             const isGoodDuration = isUnderThreeHours(item.duration);
             if (!isGoodDuration) tooLong = true;
             return item.type === "video" && isGoodDuration;
