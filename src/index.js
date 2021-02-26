@@ -363,7 +363,12 @@ async function respondPlay(message) {
         return message.channel.send(smiley(sad) + " somebody pls give me permission to join voice channels.");
     }
 
-    const cmd = message.content.substr(prefix.length).trim();
+    let doSkip = false;
+    let cmd = message.content.substr(prefix.length).trim();
+    if (cmd.startsWith("skip ")) {
+        doSkip = true;
+        cmd = cmd.substr(5);
+    }
     const args = cmd.split(" ");
 
     let rate = defaultRate;
@@ -468,6 +473,7 @@ async function respondPlay(message) {
 
         // Join voice channel
         let connection = connections.get(message.guild.id);
+        let songLength = connection?.queue?.length ?? 0;
         if (!connection) {
             connection = new Connection(await voiceChannel.join(), message.channel);
             connections.set(message.guild.id, connection);
@@ -476,10 +482,15 @@ async function respondPlay(message) {
                 connection.vc = await voiceChannel.join();
             }
 
-            if (connection.queue.length) {
+            if (songLength && doSkip) {
+                connection.skip();
+                songLength--;
+            }
+
+            if (songLength) {
                 playMsg = "Playing after "
-                    + (connection.queue.length >= 2
-                        ? (connection.queue.length + " songs!")
+                    + (songLength >= 2
+                        ? (songLength + " songs!")
                         : "1 song!");
             }
         }
@@ -488,7 +499,7 @@ async function respondPlay(message) {
         let msg = "**" + playMsg + " " + smiley(party) + "**"
             + "\nDuration: `" + secondsToDuration(duration) + "`";
 
-        if (connection.queue.length) {
+        if (songLength) {
             let secondsUntil = connection.queue.reduce((seconds, song) => seconds + song.duration, 0);
             secondsUntil -= (Date.now() - connection.songStartTimestamp) / 1000;
             msg += " / Playing in: `" + secondsToDuration(secondsUntil) + "`";
@@ -618,7 +629,10 @@ async function playSong(connection) {
                 fs.unlinkSync(song.file);
 
                 connection.onSongEnd();
-                (await reaction).remove();
+                var r = await reaction;
+                if (r && r.message) {
+                    r.remove();
+                }
             })
             .on("error", error => console.error(error));
         connection.dispatcher = dispatcher;
