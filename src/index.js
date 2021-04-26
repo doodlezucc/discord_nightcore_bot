@@ -151,6 +151,7 @@ class Connection {
     }
 
     onLeave() {
+        this.dispatcher.end();
         this.vc.disconnect();
         connections.delete(this.textChannel.guild.id);
     }
