@@ -227,7 +227,7 @@ async function respondDebugTraffic(message) {
 /** @param {Discord.Message} message */
 async function respondHelp(message) {
     function singleParam(aliases, description) {
-        return s = "        `"
+        return s = "     •  `"
             + aliases.map((a) => "-" + a).join("`/`")
             + "` : " + description;
     }
@@ -250,7 +250,7 @@ async function respondHelp(message) {
         "*I can help " + sender + "-chan! " + smiley(happy) + "*",
         ":musical_note: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
-        "    *params* can be any of the following, separated by spaces:",
+        "    *params* can be any combination of the following, separated by spaces:",
         singleParam(["r", "rate", "speed <rate>"], "Plays the song at `rate` speed (default is " + defaultRate + "x)"),
         singleParam(["b", "bass", "bassboost <dB>"], "Boosts the bass frequencies by `dB` decibels"),
         singleParam(["amp", "amplify", "volume <dB>"], "Amplifies the song by `dB` decibels"),
