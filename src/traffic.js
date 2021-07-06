@@ -2,10 +2,22 @@ const fs = require("fs");
 
 const directory = "./traffic";
 
+let monthBuffer = -1;
+
 function trafficFile() {
-    const date = new Date();
-    const month = date.getUTCFullYear() + "-" + (date.getUTCMonth() + 1 + "").padStart(2, "0");
-    return directory + "/traffic-" + month + ".json";
+    const now = new Date();
+    const month = now.getUTCMonth();
+
+    // Initialize new monthly traffic report
+    if (monthBuffer >= 0 && month != monthBuffer) {
+        console.log("NEW MONTH");
+        traffic.read = 0;
+        traffic.written = 0;
+    }
+    monthBuffer = month;
+
+    const date = now.getUTCFullYear() + "-" + (month + 1 + "").padStart(2, "0");
+    return directory + "/traffic-" + date + ".json";
 }
 
 let changed = false;
