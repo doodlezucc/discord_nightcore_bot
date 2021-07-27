@@ -435,8 +435,17 @@ async function respondPlay(message) {
         return message.channel.send("B-b-but you forgot the search query... " + smiley(sad));
     }
 
-    if (query.startsWith("https://") && query.includes("&")) {
-        query = query.substr(0, query.indexOf("&"));
+    if (query.startsWith("https://")) {
+        if (query.includes("&")) {
+            query = query.substr(0, query.indexOf("&"));
+        }
+        if (query.includes("?v=")) {
+            query = query.substr(query.indexOf("?v=") + 3);
+        } else if (query.includes("youtu.be/")) {
+            query = query.substr(query.lastIndexOf("/"));
+        } else {
+            // TODO: handle URLs outside youtube
+        }
     }
 
     //console.log(query, rate, bassboost, amplify);
