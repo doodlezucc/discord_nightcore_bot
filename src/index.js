@@ -236,7 +236,7 @@ async function respondHelp(message) {
         return (start + Math.random() * (end - start)).toFixed(1);
     }
 
-    const sender = message.guild.member(message.author).nickname;
+    const sender = message.guild.member(message.author).nickname ?? message.author.username;
 
     let examples = [
         "-r " + randomRange(0.5, 2.0),
@@ -355,7 +355,7 @@ async function respondPlay(message) {
     if (!voiceChannel) {
         message.channel.send("join a voice channel first");
         return setTimeout(() => {
-            message.channel.send("cunt");
+            message.channel.send("twat");
         }, 1000);
     }
 
