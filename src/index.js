@@ -20,6 +20,7 @@ const rawFormat = "s16le";
 const {
     prefix,
     token,
+    color
 } = require("../config.json");
 
 const smileys = require("./smileys.json");
@@ -560,7 +561,7 @@ async function respondPlay(message) {
         const sent = await message.channel.send({
             embeds: [
                 new Discord.MessageEmbed()
-                    .setColor("#51cdd7")
+                    .setColor(color)
                     .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
                     .setURL(video.url)
                     .setThumbnail(video.bestThumbnail.url)
