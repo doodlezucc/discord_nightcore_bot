@@ -1,4 +1,5 @@
 const Discord = require("discord.js");
+const Voice = require("@discordjs/voice");
 const ytdl = require("ytdl-core");
 const ytsr = require("ytsr");
 const ffmpeg = require("fluent-ffmpeg");
@@ -11,7 +12,8 @@ if (!fs.existsSync(jobsDir)) {
     fs.mkdirSync(jobsDir);
 }
 
-const defaultRate = 1.3;
+// pitched up by 4 semitones = 1.25992
+const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
 const {
     prefix,
@@ -39,7 +41,15 @@ function smiley(arr, bold) {
     return s;
 }
 
-const client = new Discord.Client();
+const client = new Discord.Client({
+    intents: [
+        "GUILD_VOICE_STATES",
+        "GUILD_MESSAGES",
+        "GUILDS",
+        "GUILD_MESSAGE_REACTIONS",
+    ]
+});
+
 client.login(token);
 
 client.once("ready", () => {
@@ -65,7 +75,7 @@ client.on("voiceStateUpdate", (_, state) => {
     }
 });
 
-client.on("message", async message => {
+client.on("messageCreate", async message => {
     if (message.author.bot) return;
     if (!message.content.toLowerCase().startsWith(prefix)) return;
 
@@ -107,15 +117,19 @@ class Song {
 
 class Connection {
     /**
-     * @param {Discord.VoiceConnection} vconnect
+     * @param {Voice.VoiceConnection} vconnect
      * @param {Discord.TextChannel} textChannel
      * */
     constructor(vconnect, textChannel) {
         this.vc = vconnect;
         this.textChannel = textChannel;
 
-        /** @type {Discord.StreamDispatcher} */
-        this.dispatcher = null;
+        /** @type {Voice.AudioPlayer} */
+        this.player = Voice.createAudioPlayer({
+            debug: true,
+            behaviors: { maxMissedFrames: 100000000 },
+        });
+        this.vc.subscribe(this.player);
 
         /** @type {Song[]} */
         this.queue = [];
@@ -151,13 +165,13 @@ class Connection {
     }
 
     onLeave() {
-        this.dispatcher.end();
+        this.player.stop();
         this.vc.disconnect();
         connections.delete(this.textChannel.guild.id);
     }
 
     skip() {
-        this.dispatcher.end();
+        this.player.stop();
     }
 }
 
@@ -236,7 +250,7 @@ async function respondHelp(message) {
         return (start + Math.random() * (end - start)).toFixed(1);
     }
 
-    const sender = message.guild.member(message.author).nickname ?? message.author.username;
+    const sender = message.member?.nickname ?? message.author.username;
 
     let examples = [
         "-r " + randomRange(0.5, 2.0),
@@ -304,7 +318,7 @@ async function respondStop(message, leave) {
     if (leave) connection.vc.disconnect();
 
     connection.queue = [];
-    connection.dispatcher.end();
+    connection.player.stop();
 
     message.channel.send("oh- okay... " + smiley(sad));
 }
@@ -338,7 +352,7 @@ function shuffle(a) {
 /** @param {Discord.TextChannel} textChannel */
 function onPlayError(search, textChannel, err) {
     console.log('Error executing "' + search + '":');
-    console.error(err);
+    console.error(err.stack || err);
     textChannel?.send(
         "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
         + "there was some sort of error " + smiley(sad)
@@ -351,6 +365,7 @@ function isUnderThreeHours(durationString) {
 
 /** @param {Discord.Message} message */
 async function respondPlay(message) {
+    /** @type {Discord.VoiceChannel} */
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
         message.channel.send("join a voice channel first");
@@ -460,7 +475,10 @@ async function respondPlay(message) {
         });
 
         let tooLong = false;
+        /** @type {ytsr.Video} */
         const video = search.items.find((item) => {
+            if (item.type !== "video") return false;
+
             if (item.isLive) return false;
 
             const isGoodDuration = isUnderThreeHours(item.duration);
@@ -485,10 +503,16 @@ async function respondPlay(message) {
         let connection = connections.get(message.guild.id);
         let songLength = connection?.queue?.length ?? 0;
         if (!connection) {
-            connection = new Connection(await voiceChannel.join(), message.channel);
+            const voiceConnection = Voice.joinVoiceChannel({
+                channelId: voiceChannel.id,
+                guildId: voiceChannel.guild.id,
+                adapterCreator: voiceChannel.guild.voiceAdapterCreator,
+            });
+
+            connection = new Connection(voiceConnection, message.channel);
             connections.set(message.guild.id, connection);
         } else {
-            if (voiceChannel.id !== connection.vc.channel.id) {
+            if (voiceChannel.id !== connection.vc.joinConfig.channelId) {
                 connection.vc = await voiceChannel.join();
             }
 
@@ -515,12 +539,16 @@ async function respondPlay(message) {
             msg += " / Playing in: `" + secondsToDuration(secondsUntil) + "`";
         }
 
-        const sent = await message.channel.send(new Discord.MessageEmbed()
-            .setColor("#51cdd7")
-            .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
-            .setURL(video.url)
-            .setThumbnail(video.bestThumbnail.url)
-            .setDescription(msg));
+        const sent = await message.channel.send({
+            embeds: [
+                new Discord.MessageEmbed()
+                    .setColor("#51cdd7")
+                    .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
+                    .setURL(video.url)
+                    .setThumbnail(video.bestThumbnail.url)
+                    .setDescription(msg)
+            ]
+        });
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
         connection.addToQueue(new Song(
@@ -573,6 +601,7 @@ async function playSong(connection) {
 
     try {
         const info = await ytdl.getInfo(song.url);
+        /** @type {ytdl.videoFormat} */
         let format = {
             contentLength: Infinity,
         };
@@ -612,11 +641,28 @@ async function playSong(connection) {
             .addInput(format.url)
             .audioFilter(filters)
             .format("opus")
+            .on("end", () => {
+                console.log("Done processing");
+            })
+            .on("progress", progress => {
+                console.log(progress.timemark);
+            })
             .on("error", (err) => {
                 if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
                     onPlayError(song.searchQuery, connection.textChannel, err);
                 }
+                console.log("FFMPEG:");
+                console.error(err.stack || err);
             });
+
+        const time = Date.now();
+        const ffmpegStarted = new Promise(resolve => {
+            ff.on("start", () => {
+                console.log(Date.now() - time);
+                resolve();
+            });
+        });
+
         ff.pipe(fs.createWriteStream(song.file), { end: true });
 
         // Register audio download as traffic
@@ -625,27 +671,31 @@ async function playSong(connection) {
 
         // Give the server a head start on writing the nightcorified file.
         // If this timeout is set too low, an end of stream occurs.
-        await new Promise(done => setTimeout(done, 1500));
+        await ffmpegStarted;
+        await new Promise(done => setTimeout(done, 500));
 
         const readStream = fs.createReadStream(song.file);
         readStream.on("data", traffic.onWrite);
 
-        const dispatcher = connection.vc.play(readStream, {
-            volume: 0.8,
-        })
-            .on("finish", async () => {
-                readStream.destroy();
-                ff.kill("SIGTERM");
-                fs.unlinkSync(song.file);
+        connection.player.play(Voice.createAudioResource(readStream));
 
+        connection.player.on("stateChange", async (oldState, newState) => {
+            console.log("STATE CHANGE " + oldState.status + " -> " + newState.status);
+            if (newState.status == Voice.AudioPlayerStatus.Idle) {
+                connection.player.removeAllListeners();
+                readStream.destroy();
+                // ff.kill("SIGTERM");
+                // fs.unlinkSync(song.file);
                 connection.onSongEnd();
                 var r = await reaction;
                 if (r && r.message) {
                     r.remove();
                 }
-            })
-            .on("error", error => console.error(error));
-        connection.dispatcher = dispatcher;
+            }
+        }).on("error", (err) => {
+            console.error(err.stack || err);
+        });
+
     } catch (err) {
         onPlayError(song.searchQuery, connection.textChannel, err);
         connection.onSongEnd();
