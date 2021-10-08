@@ -59,10 +59,10 @@ client.once("ready", () => {
 
     client.user.setPresence({
         status: "online",
-        activity: {
+        activities: [{
             type: "PLAYING",
             name: prefix + " help"
-        }
+        }]
     });
 });
 client.on("reconnecting", () => {
