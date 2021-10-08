@@ -15,6 +15,8 @@ if (!fs.existsSync(jobsDir)) {
 // pitched up by 4 semitones = 1.25992
 const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
+const rawFormat = "s16le";
+
 const {
     prefix,
     token,
@@ -103,8 +105,10 @@ class Song {
      * @param {string} searchQuery
      * @param {Effects} effects
      * @param {Discord.Message} message
+     * @param {ytdl.videoFormat} format
+     * @param {Promise} writtenToDisk
      */
-    constructor(file, title, url, duration, searchQuery, effects, message) {
+    constructor(file, title, url, duration, searchQuery, effects, message, format, writtenToDisk) {
         this.file = file;
         this.title = title;
         this.url = url;
@@ -112,6 +116,8 @@ class Song {
         this.searchQuery = searchQuery;
         this.effects = effects;
         this.message = message;
+        this.format = format;
+        this.writtenToDisk = writtenToDisk;
     }
 }
 
@@ -265,7 +271,7 @@ async function respondHelp(message) {
         ":musical_note: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
         "",
         "    *params* can be any combination of the following, separated by spaces:",
-        singleParam(["r", "rate", "speed <rate>"], "Plays the song at `rate` speed (default is " + defaultRate + "x)"),
+        singleParam(["r", "rate", "speed <rate>"], "Plays the song at `rate` speed (default is " + defaultRate.toFixed(2) + "x)"),
         singleParam(["b", "bass", "bassboost <dB>"], "Boosts the bass frequencies by `dB` decibels"),
         singleParam(["amp", "amplify", "volume <dB>"], "Amplifies the song by `dB` decibels"),
         "",
@@ -293,16 +299,28 @@ async function respondSave(message) {
     const song = connection.queue[0];
     const name = song.searchQuery + "-nightcore.mp3";
 
+    await song.writtenToDisk;
+
     // If this isn't awaited, not the entire stream is sent.
     await message.channel.send("Converting to MP3!");
 
     const stream = new Stream.PassThrough();
     stream.on("data", traffic.onWrite);
     ffmpeg(song.file)
-        .format("mp3")
+        .inputFormat(rawFormat)
+        .addInputOption("-ar " + song.format.audioSampleRate)
+        .addInputOption("-channels " + song.format.audioChannels)
+        .outputFormat("mp3")
         .pipe(stream);
 
-    message.channel.send(new Discord.MessageAttachment(stream, name));
+    message.channel.send({
+        files: [
+            {
+                name: name,
+                attachment: stream,
+            }
+        ],
+    });
 }
 
 /** 
@@ -609,7 +627,7 @@ async function playSong(connection) {
             if (fmt.hasAudio && !fmt.hasVideo) {
                 fmt.contentLength = parseInt(fmt.contentLength);
                 // Get smallest audio-only file
-                if (fmt.contentLength < format.contentLength) {
+                if (fmt.audioBitrate > 56 && fmt.contentLength < format.contentLength) {
                     format = fmt;
                 }
             }
@@ -622,6 +640,7 @@ async function playSong(connection) {
         }
 
         // Initialize ffmpeg
+        song.format = format;
         const sampleRate = format.audioSampleRate;
 
         let filters = [
@@ -640,13 +659,8 @@ async function playSong(connection) {
         const ff = ffmpeg()
             .addInput(format.url)
             .audioFilter(filters)
-            .format("opus")
-            .on("end", () => {
-                console.log("Done processing");
-            })
-            .on("progress", progress => {
-                console.log(progress.timemark);
-            })
+            .audioCodec("pcm_" + rawFormat)
+            .format(rawFormat)
             .on("error", (err) => {
                 if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
                     onPlayError(song.searchQuery, connection.textChannel, err);
@@ -655,12 +669,19 @@ async function playSong(connection) {
                 console.error(err.stack || err);
             });
 
-        const time = Date.now();
-        const ffmpegStarted = new Promise(resolve => {
-            ff.on("start", () => {
-                console.log(Date.now() - time);
-                resolve();
+        const ffmpegReady = new Promise(resolve => {
+            let count = 0;
+            ff.on("progress", progress => {
+                count++;
+
+                if (count == 2) {
+                    resolve();
+                }
             });
+        });
+
+        song.writtenToDisk = new Promise(resolve => {
+            ff.on("end", resolve);
         });
 
         ff.pipe(fs.createWriteStream(song.file), { end: true });
@@ -671,21 +692,22 @@ async function playSong(connection) {
 
         // Give the server a head start on writing the nightcorified file.
         // If this timeout is set too low, an end of stream occurs.
-        await ffmpegStarted;
-        await new Promise(done => setTimeout(done, 500));
+        await ffmpegReady;
 
         const readStream = fs.createReadStream(song.file);
         readStream.on("data", traffic.onWrite);
 
-        connection.player.play(Voice.createAudioResource(readStream));
+        const resource = Voice.createAudioResource(readStream, {
+            inputType: Voice.StreamType.Raw
+        });
+        connection.player.play(resource);
 
         connection.player.on("stateChange", async (oldState, newState) => {
-            console.log("STATE CHANGE " + oldState.status + " -> " + newState.status);
             if (newState.status == Voice.AudioPlayerStatus.Idle) {
                 connection.player.removeAllListeners();
                 readStream.destroy();
                 // ff.kill("SIGTERM");
-                // fs.unlinkSync(song.file);
+                fs.unlinkSync(song.file);
                 connection.onSongEnd();
                 var r = await reaction;
                 if (r && r.message) {
