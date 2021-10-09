@@ -657,6 +657,20 @@ async function playSong(connection) {
 
         const reaction = song.message.react(reactions.nowPlaying);
 
+        async function stopThisSong() {
+            connection.player.removeAllListeners();
+            readStream?.destroy();
+            ff?.kill("SIGTERM");
+            if (fs.existsSync(song.file)) {
+                fs.unlinkSync(song.file);
+            }
+            connection.onSongEnd();
+            var r = await reaction;
+            if (r && r.message) {
+                r.remove();
+            }
+        }
+
         const ff = ffmpeg()
             .addInput(format.url)
             .audioFilter(filters)
@@ -665,9 +679,8 @@ async function playSong(connection) {
             .on("error", (err) => {
                 if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
                     onPlayError(song.searchQuery, connection.textChannel, err);
+                    stopThisSong();
                 }
-                console.log("FFMPEG:");
-                console.error(err.stack || err);
             });
 
         const ffmpegReady = new Promise(resolve => {
@@ -685,7 +698,7 @@ async function playSong(connection) {
             ff.on("end", resolve);
         });
 
-        ff.pipe(fs.createWriteStream(song.file), { end: true });
+        const writeStream = ff.pipe(fs.createWriteStream(song.file), { end: true });
 
         // Register audio download as traffic
         // (might count too much if users decide to skip midway through)
@@ -703,17 +716,9 @@ async function playSong(connection) {
         });
         connection.player.play(resource);
 
-        connection.player.on("stateChange", async (oldState, newState) => {
+        connection.player.on("stateChange", (oldState, newState) => {
             if (newState.status == Voice.AudioPlayerStatus.Idle) {
-                connection.player.removeAllListeners();
-                readStream.destroy();
-                // ff.kill("SIGTERM");
-                fs.unlinkSync(song.file);
-                connection.onSongEnd();
-                var r = await reaction;
-                if (r && r.message) {
-                    r.remove();
-                }
+                stopThisSong();
             }
         }).on("error", (err) => {
             console.error(err.stack || err);
