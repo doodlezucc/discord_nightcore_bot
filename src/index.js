@@ -692,13 +692,16 @@ async function playSong(connection) {
                     resolve();
                 }
             });
+
+            song.writtenToDisk = new Promise(onWritten => {
+                ff.on("end", () => {
+                    resolve();
+                    onWritten();
+                });
+            });
         });
 
-        song.writtenToDisk = new Promise(resolve => {
-            ff.on("end", resolve);
-        });
-
-        const writeStream = ff.pipe(fs.createWriteStream(song.file), { end: true });
+        ff.pipe(fs.createWriteStream(song.file), { end: true });
 
         // Register audio download as traffic
         // (might count too much if users decide to skip midway through)
