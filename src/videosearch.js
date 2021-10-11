@@ -73,14 +73,17 @@ async function urlToInfo(url) {
                             if (err) return reject(err);
 
                             const format = data.format;
-                            // TODO: Find audio stream
-                            const stream = data.streams[0];
-                            if (!mock.duration) {
-                                const seconds = format.duration;
-                                mock.duration = secondsToDuration(parseFloat(seconds));
+                            const stream = data.streams.find(s => s.codec_type === "audio");
+                            if (stream) {
+                                if (!mock.duration) {
+                                    const seconds = format.duration;
+                                    mock.duration = secondsToDuration(parseFloat(seconds));
+                                }
+                                mock.format = new MockFormat(mediaUrl, stream.channels, stream.sample_rate);
+                                probed();
+                            } else {
+                                reject(new Error("No audio stream found."));
                             }
-                            mock.format = new MockFormat(mediaUrl, stream.channels, stream.sample_rate);
-                            probed();
                         });
                     });
 
