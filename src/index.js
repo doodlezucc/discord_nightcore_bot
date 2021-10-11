@@ -370,7 +370,7 @@ function shuffle(a) {
 
 /** @param {Discord.TextChannel} textChannel */
 function onPlayError(search, textChannel, err) {
-    console.log('Error executing "' + search + '":');
+    console.error('Error executing "' + search + '":');
     console.error(err.stack || err);
     textChannel?.send(
         "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
@@ -656,6 +656,8 @@ async function playSong(connection) {
         }
 
         const reaction = song.message.react(reactions.nowPlaying);
+        /** @type {fs.ReadStream} */
+        let readStream;
 
         async function stopThisSong() {
             connection.player.removeAllListeners();
@@ -711,7 +713,7 @@ async function playSong(connection) {
         // If this timeout is set too low, an end of stream occurs.
         await ffmpegReady;
 
-        const readStream = fs.createReadStream(song.file);
+        readStream = fs.createReadStream(song.file);
         readStream.on("data", traffic.onWrite);
 
         const resource = Voice.createAudioResource(readStream, {
