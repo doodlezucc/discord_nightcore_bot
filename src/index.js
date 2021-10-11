@@ -1,11 +1,12 @@
 const Discord = require("discord.js");
 const Voice = require("@discordjs/voice");
 const ytdl = require("ytdl-core");
-const ytsr = require("ytsr");
 const ffmpeg = require("fluent-ffmpeg");
 const Stream = require("stream");
 const fs = require("fs");
 const traffic = require("./traffic");
+const { MockFormat, findVideo } = require("./videosearch");
+const { durationToSeconds, secondsToDuration } = require("./duration");
 
 const jobsDir = "jobs/";
 if (!fs.existsSync(jobsDir)) {
@@ -106,7 +107,7 @@ class Song {
      * @param {string} searchQuery
      * @param {Effects} effects
      * @param {Discord.Message} message
-     * @param {ytdl.videoFormat} format
+     * @param {MockFormat} format
      * @param {Promise} writtenToDisk
      */
     constructor(file, title, url, duration, searchQuery, effects, message, format, writtenToDisk) {
@@ -131,10 +132,9 @@ class Connection {
         this.vc = vconnect;
         this.textChannel = textChannel;
 
-        /** @type {Voice.AudioPlayer} */
         this.player = Voice.createAudioPlayer({
             debug: true,
-            behaviors: { maxMissedFrames: 100000000 },
+            behaviors: { maxMissedFrames: 100 },
         });
         this.vc.subscribe(this.player);
 
@@ -342,7 +342,7 @@ async function respondStop(message, leave) {
     message.channel.send("oh- okay... " + smiley(sad));
 }
 
-/** 
+/**
  * Skips the current song.
  * @param {Discord.Message} message
 */
@@ -370,16 +370,15 @@ function shuffle(a) {
 
 /** @param {Discord.TextChannel} textChannel */
 function onPlayError(search, textChannel, err) {
-    console.error('Error executing "' + search + '":');
-    console.error(err.stack || err);
+    console.error('Error executing "' + search + '":\n' + (err.stack || err));
+    let trim = err + "";
+    if (trim.length > 1000) {
+        trim = "..." + trim.substring(trim.length - 1000);
+    }
     textChannel?.send(
-        "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but "
-        + "there was some sort of error " + smiley(sad)
+        "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but apparently "
+        + "there was some sort of error " + smiley(sad) + "\n```" + trim + "```"
     );
-}
-
-function isUnderThreeHours(durationString) {
-    return !(/([1-9][0-9]|[3-9]):.*:/).test(durationString);
 }
 
 /** @param {Discord.Message} message */
@@ -473,48 +472,15 @@ async function respondPlay(message) {
         if (query.includes("&")) {
             query = query.substr(0, query.indexOf("&"));
         }
-        if (query.includes("?v=")) {
-            query = query.substr(query.indexOf("?v=") + 3);
-        } else if (query.includes("youtu.be/")) {
-            query = query.substr(query.lastIndexOf("/"));
-        } else {
-            // TODO: handle URLs outside youtube
-        }
     }
 
-    //console.log(query, rate, bassboost, amplify);
-
     const searchMsg = message.channel.send(
-        "Searching for `" + query + "`... _kinda weird tbh but I don't judge_"
-    );
+        "Searching for `" + query + "`... _kinda weird tbh but I don't judge_");
 
     try {
-        const search = await ytsr(query, {
-            limit: 10,
-        });
+        const video = await findVideo(query, message);
 
-        let tooLong = false;
-        /** @type {ytsr.Video} */
-        const video = search.items.find((item) => {
-            if (item.type !== "video") return false;
-
-            if (item.isLive) return false;
-
-            const isGoodDuration = isUnderThreeHours(item.duration);
-            if (!isGoodDuration) tooLong = true;
-            return item.type === "video" && isGoodDuration;
-        });
-
-        if (!video) {
-            if (tooLong) {
-                message.channel.send("**holy frick...** it's so long " + smiley(nervous, true));
-                return setTimeout(() => {
-                    message.channel.send("I- I don't think I can fit this in my storage, sowwy " + smiley(sad));
-                }, 1000);
-            }
-            return message.channel.send(
-                "**ok wow** I couldn't find any video at all how is that even possible? " + smiley(sad));
-        }
+        if (!video) return;
 
         let playMsg = "Playing right now!";
 
@@ -578,39 +544,14 @@ async function respondPlay(message) {
             query,
             new Effects(rate, amplify, bassboost),
             sent,
+            video.format,
         ));
-
-        await new Promise(done => setTimeout(done, 1000));
-        (await searchMsg).delete();
     } catch (err) {
         onPlayError(message.content, message.channel, err);
+    } finally {
+        await new Promise(done => setTimeout(done, 1000));
+        (await searchMsg).delete();
     }
-}
-
-/** @param {String} d */
-function durationToSeconds(d) {
-    const parts = d.split(":").reverse();
-    let sec = parseInt(parts[0]);
-    if (parts.length >= 2) {
-        sec += 60 * parts[1];
-        if (parts.length >= 3) sec += 60 * 60 * parts[2];
-    }
-    return sec;
-}
-
-/** @param {number} sec */
-function secondsToDuration(sec) {
-    sec = Math.floor(sec);
-    const secMod = sec % 60;
-    const min = Math.floor(sec / 60) % 60;
-    let out = ":" + secMod.toString().padStart(2, "0");
-    if (sec >= 60 * 60) {
-        const hours = Math.floor(sec / 60 / 60);
-        out = hours + ":" + min.toString().padStart(2, "0") + out;
-    } else {
-        out = min + out;
-    }
-    return out;
 }
 
 /** @param {Connection} connection */
@@ -619,34 +560,42 @@ async function playSong(connection) {
     connection.songStartTimestamp = Date.now();
 
     try {
-        const info = await ytdl.getInfo(song.url);
-        /** @type {ytdl.videoFormat} */
-        let format = {
-            contentLength: Infinity,
-        };
-        for (let fmt of info.formats) {
-            if (fmt.hasAudio && !fmt.hasVideo) {
-                fmt.contentLength = parseInt(fmt.contentLength);
-                // Get smallest audio-only file
-                if (fmt.audioBitrate > 56 && fmt.contentLength < format.contentLength) {
-                    format = fmt;
-                }
-            }
-        }
+        /** @type {MockFormat} */
+        let format = song.format;
 
         if (!format) {
-            connection.textChannel.send(
-                "**oh no** I can't find a good audio source for `" + video.title + "` " + smiley(sad));
-            return connection.skip();
+            const info = await ytdl.getInfo(song.url);
+            /** @type {ytdl.videoFormat} */
+            format = {
+                contentLength: Infinity,
+            };
+            for (let fmt of info.formats) {
+                if (fmt.hasAudio && !fmt.hasVideo) {
+                    fmt.contentLength = parseInt(fmt.contentLength);
+                    // Get smallest audio-only file
+                    if (fmt.audioBitrate > 56 && fmt.contentLength < format.contentLength) {
+                        format = fmt;
+                    }
+                }
+            }
+
+            if (!format) {
+                connection.textChannel.send(
+                    "**oh no** I could't find a good audio source for `" + video.title + "` " + smiley(sad));
+                return connection.skip();
+            }
+
+            song.format = format;
         }
 
+        console.log(song);
+
         // Initialize ffmpeg
-        song.format = format;
         const sampleRate = format.audioSampleRate;
 
         let filters = [
-            "asetrate=" + sampleRate + "*" + song.effects.rate,
-            "aresample=" + sampleRate,
+            "asetrate=" + sampleRate + "*" + (song.effects.rate * format.audioChannels / 2),
+            "aresample=" + 48000,
         ];
         if (song.effects.bassboost != 0) {
             filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + song.effects.bassboost + ");entry(350,0)'");
@@ -712,6 +661,7 @@ async function playSong(connection) {
         // Give the server a head start on writing the nightcorified file.
         // If this timeout is set too low, an end of stream occurs.
         await ffmpegReady;
+        connection.songStartTimestamp = Date.now();
 
         readStream = fs.createReadStream(song.file);
         readStream.on("data", traffic.onWrite);
