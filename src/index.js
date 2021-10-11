@@ -588,8 +588,6 @@ async function playSong(connection) {
             song.format = format;
         }
 
-        console.log(song);
-
         // Initialize ffmpeg
         const sampleRate = format.audioSampleRate;
 
@@ -617,7 +615,7 @@ async function playSong(connection) {
             }
             connection.onSongEnd();
             var r = await reaction;
-            if (r && r.message) {
+            if (r && r.message && !r.message.deleted) {
                 r.remove();
             }
         }
