@@ -334,12 +334,12 @@ async function respondStop(message, leave) {
         return message.channel.send("wtf I'm not even doing anything");
     }
 
-    if (leave) connection.vc.disconnect();
-
     connection.queue = [];
     connection.player.stop();
 
-    message.channel.send("oh- okay... " + smiley(sad));
+    await message.channel.send("oh- okay... " + smiley(sad));
+
+    if (leave) connection.vc.disconnect();
 }
 
 /**

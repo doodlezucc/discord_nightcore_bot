@@ -87,10 +87,9 @@ async function urlToInfo(url) {
                         });
                     });
 
-
                     resolve(mock);
                 } else {
-                    resolve();
+                    reject(new Error("Failed to get video info."));
                 }
             });
 
