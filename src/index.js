@@ -608,7 +608,7 @@ async function playSong(connection) {
 
         async function stopThisSong() {
             connection.player.removeAllListeners();
-            readStream?.destroy();
+            connection.player.stop(true);
             ff?.kill("SIGTERM");
             if (fs.existsSync(song.file)) {
                 fs.unlinkSync(song.file);
@@ -670,7 +670,7 @@ async function playSong(connection) {
         connection.player.play(resource);
 
         connection.player.on("stateChange", (oldState, newState) => {
-            if (newState.status == Voice.AudioPlayerStatus.Idle) {
+            if (newState.status == Voice.AudioPlayerStatus.Idle || newState.status == Voice.AudioPlayerStatus.AutoPaused) {
                 stopThisSong();
             }
         }).on("error", (err) => {
