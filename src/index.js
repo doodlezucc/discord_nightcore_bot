@@ -145,6 +145,7 @@ class Connection {
         this.songStartTimestamp = 0;
 
         this.timeout = null;
+        this.attempts = 0;
     }
 
     addToQueue(song) {
@@ -235,7 +236,7 @@ async function respondDebugTraffic(message) {
     const written = traffic.getWritten();
 
     function toLine(bytes) {
-        return bytes + " bytes (" + (bytes / 1024 / 1024).toFixed(1) + "MB)";
+        return bytes + " bytes (" + (bytes / 1000 / 1000).toFixed(1) + "MB)";
     }
 
     return message.channel.send([
@@ -376,7 +377,7 @@ function onPlayError(search, textChannel, err) {
         trim = "..." + trim.substring(trim.length - 1000);
     }
     textChannel?.send(
-        "**oh god oh no** " + smiley(nervous) + " uhm so I don't know how to tell you but apparently "
+        "uhm so I don't know how to tell you but apparently "
         + "there was some sort of error " + smiley(sad) + "\n```" + trim + "```"
     );
 }
@@ -435,7 +436,7 @@ async function respondPlay(message) {
                 return parsed;
             }
 
-            switch (arg.substr(1).toLowerCase()) {
+            switch (arg.substring(1).toLowerCase()) {
                 case "r":
                 case "rate":
                 case "speed":
@@ -558,6 +559,7 @@ async function respondPlay(message) {
 async function playSong(connection) {
     const song = connection.queue[0];
     connection.songStartTimestamp = Date.now();
+    connection.attempts++;
 
     try {
         /** @type {MockFormat} */
@@ -565,7 +567,6 @@ async function playSong(connection) {
 
         if (!format) {
             const info = await ytdl.getInfo(song.url);
-            /** @type {ytdl.videoFormat} */
             format = {
                 contentLength: Infinity,
             };
@@ -615,8 +616,12 @@ async function playSong(connection) {
             }
             connection.onSongEnd();
             var r = await reaction;
-            if (r && r.message && !r.message.deleted) {
-                r.remove();
+            if (r && r.message) {
+                try {
+                    await r.remove();
+                } catch (error) {
+                    console.log("Failed to remove reaction");
+                }
             }
         }
 
@@ -627,7 +632,14 @@ async function playSong(connection) {
             .format(rawFormat)
             .on("error", (err) => {
                 if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
-                    onPlayError(song.searchQuery, connection.textChannel, err);
+                    if (err.message.includes("403 Forbidden") && connection.attempts < 3) {
+                        connection.queue.unshift(song);
+                        connection.attempts++;
+                        console.log("attempt " + connection.attempts);
+                    } else {
+                        connection.attempts = 0;
+                        onPlayError(song.searchQuery, connection.textChannel, err);
+                    }
                     stopThisSong();
                 }
             });
@@ -671,6 +683,7 @@ async function playSong(connection) {
 
         connection.player.on("stateChange", (oldState, newState) => {
             if (newState.status == Voice.AudioPlayerStatus.Idle || newState.status == Voice.AudioPlayerStatus.AutoPaused) {
+                connection.attempts = 0;
                 stopThisSong();
             }
         }).on("error", (err) => {
@@ -678,6 +691,7 @@ async function playSong(connection) {
         });
 
     } catch (err) {
+        connection.attempts = 0;
         onPlayError(song.searchQuery, connection.textChannel, err);
         connection.onSongEnd();
     }
