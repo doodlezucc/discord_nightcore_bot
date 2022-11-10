@@ -25,7 +25,7 @@ const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
 const rawFormat = "s16le";
 
-import config from "../config.json";
+import config from "../config.json" assert { type: "json" };;
 const {
     prefix,
     token,

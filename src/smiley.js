@@ -1,4 +1,4 @@
-import smileys from "./smileys.json";
+import smileys from "./smileys.json" assert { type: "json" };
 export const {
     happy,
     sad,
