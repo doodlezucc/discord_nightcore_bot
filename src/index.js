@@ -1,12 +1,19 @@
-const Discord = require("discord.js");
-const Voice = require("@discordjs/voice");
-const ytdl = require("ytdl-core");
-const ffmpeg = require("fluent-ffmpeg");
-const Stream = require("stream");
-const fs = require("fs");
-const traffic = require("./traffic");
-const { MockFormat, findVideo } = require("./videosearch");
-const { durationToSeconds, secondsToDuration } = require("./duration");
+import * as Discord from "discord.js";
+import * as Voice from "@discordjs/voice";
+import ytdl from "ytdl-core";
+import ffmpeg from "fluent-ffmpeg";
+import * as Stream from "stream";
+import * as fs from "fs";
+import * as traffic from "./traffic.js";
+import { MockFormat, findVideo } from "./videosearch.js";
+import { durationToSeconds, secondsToDuration } from "./duration.js";
+import smiley, {
+    markdownEscape,
+    happy,
+    sad,
+    party,
+    mad
+} from "./smiley.js";
 
 const jobsDir = "jobs/";
 if (!fs.existsSync(jobsDir)) {
@@ -18,32 +25,12 @@ const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
 const rawFormat = "s16le";
 
+import config from "../config.json";
 const {
     prefix,
     token,
     color
-} = require("../config.json");
-
-const smileys = require("./smileys.json");
-const {
-    happy,
-    sad,
-    party,
-    mad,
-    nervous,
-} = smileys;
-
-function markdownEscape(s) {
-    // https://stackoverflow.com/a/56567342
-    return s.replace(/((\_|\*|\~|\`|\|)+)/g, "\\$1");
-}
-
-function smiley(arr, bold) {
-    let s = arr[Math.floor(Math.random() * arr.length)];
-    s = markdownEscape(s);
-    if (bold) return "**" + s + "**";
-    return s;
-}
+} = config;
 
 const client = new Discord.Client({
     intents: [
@@ -188,7 +175,7 @@ const connections = new Map();
 
 /** @param {Discord.Message} message */
 async function handleMessage(message) {
-    const cmd = message.content.substr(prefix.length).trim();
+    const cmd = message.content.substring(prefix.length).trim();
     if (!cmd.length) {
         return message.channel.send(smiley(happy, true));
     }
@@ -249,7 +236,7 @@ async function respondDebugTraffic(message) {
 /** @param {Discord.Message} message */
 async function respondHelp(message) {
     function singleParam(aliases, description) {
-        return s = "     •  `"
+        return "     •  `"
             + aliases.map((a) => "-" + a).join("`/`")
             + "` : " + description;
     }

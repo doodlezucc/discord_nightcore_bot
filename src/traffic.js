@@ -1,4 +1,4 @@
-const fs = require("fs");
+import fs from "fs";
 
 const directory = "./traffic";
 
@@ -37,24 +37,24 @@ function onChange() {
     changed = true;
 }
 
-exports.onRead = function onRead(chunk) {
+export function onRead(chunk) {
     traffic.read += chunk.length ?? chunk;
     onChange();
 }
-exports.onWrite = function onWrite(chunk) {
+export function onWrite(chunk) {
     traffic.written += chunk.length ?? chunk;
     onChange();
 }
-exports.getRead = () => traffic.read;
-exports.getWritten = () => traffic.written;
+export function getRead() { return traffic.read; }
+export function getWritten() { return traffic.written; }
 
-exports.save = function save() {
+export function save() {
     fs.writeFileSync(trafficFile(), JSON.stringify(traffic, null, 2));
 }
 
 setInterval(() => {
     if (changed) {
         changed = false;
-        exports.save();
+        save();
     }
 }, 10000);

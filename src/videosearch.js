@@ -1,10 +1,15 @@
-const ChildProcess = require("child_process");
-const Discord = require("discord.js");
-const ffmpeg = require("fluent-ffmpeg");
-const ytsr = require("ytsr");
-const { secondsToDuration } = require("./duration");
+import ChildProcess from "child_process";
+import Discord from "discord.js";
+import ffmpeg from "fluent-ffmpeg";
+import ytsr from "ytsr";
+import { secondsToDuration } from "./duration.js";
 
-class MockFormat {
+import smiley, {
+    sad,
+    nervous
+} from "./smiley.js";
+
+export class MockFormat {
     /**
      * A video/media format extracted from a site other than YouTube containing similar properties.
      * @param {string} url
@@ -18,7 +23,7 @@ class MockFormat {
     }
 }
 
-class MockVideo {
+export class MockVideo {
     /**
      * A video/media object extracted from a site other than YouTube containing similar properties.
      * @param {string} url
@@ -46,7 +51,7 @@ class MockVideo {
  * @param {string} url
  * @returns {Promise<MockVideo>}
  */
-async function urlToInfo(url) {
+export async function urlToInfo(url) {
     return new Promise((resolve, reject) => {
         const lines = [];
 
@@ -108,7 +113,7 @@ async function urlToInfo(url) {
     });
 }
 
-function isUnderThreeHours(durationString) {
+export function isUnderThreeHours(durationString) {
     return !(/([1-9][0-9]|[3-9]):.*:/).test(durationString);
 }
 
@@ -117,7 +122,7 @@ function isUnderThreeHours(durationString) {
  * @param {Discord.Message} message
  * @returns {Promise<MockVideo>}
  */
-async function findVideo(query, message) {
+export async function findVideo(query, message) {
     let video;
     let tooLong = false;
 
@@ -166,8 +171,3 @@ async function findVideo(query, message) {
 
     return video;
 }
-
-exports.MockFormat = MockFormat;
-exports.MockVideo = MockVideo;
-exports.urlToInfo = urlToInfo;
-exports.findVideo = findVideo;

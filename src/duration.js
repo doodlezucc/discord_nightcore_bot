@@ -1,5 +1,5 @@
 /** @param {String} d */
-function durationToSeconds(d) {
+export function durationToSeconds(d) {
     const parts = d.split(":").reverse();
     let sec = parseInt(parts[0]);
     if (parts.length >= 2) {
@@ -10,7 +10,7 @@ function durationToSeconds(d) {
 }
 
 /** @param {number} sec */
-function secondsToDuration(sec) {
+export function secondsToDuration(sec) {
     sec = Math.floor(sec);
     const secMod = sec % 60;
     const min = Math.floor(sec / 60) % 60;
@@ -23,6 +23,3 @@ function secondsToDuration(sec) {
     }
     return out;
 }
-
-exports.durationToSeconds = durationToSeconds;
-exports.secondsToDuration = secondsToDuration;

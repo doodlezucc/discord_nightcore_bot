@@ -2,6 +2,7 @@
   "name": "nightcorebot",
   "version": "1.0.0",
   "description": "A Discord bot to annoy your friends",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git://github.com/username/repository.git"
@@ -13,13 +14,13 @@
   "author": "doodlezucc",
   "license": "ISC",
   "dependencies": {
-    "@discordjs/opus": "^0.7.0",
+    "@discordjs/opus": "^0.9.0",
     "@discordjs/voice": "^0.7.5",
     "discord.js": "^13.6.0",
     "ffmpeg": "0.0.4",
     "fluent-ffmpeg": "^2.1.2",
     "libsodium-wrappers": "^0.7.9",
-    "ytdl-core": "^4.10.0",
+    "ytdl-core": "^4.11.2",
     "ytsr": "^3.6.0"
   }
 }
