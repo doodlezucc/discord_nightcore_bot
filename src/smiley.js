@@ -1,11 +1,13 @@
-import smileys from "./smileys.json" assert { type: "json" };
+import smileysJ from "./smileys.json" assert { type: "json" };
 export const {
     happy,
     sad,
     party,
     mad,
     nervous
-} = smileys;
+} = smileysJ;
+
+export const smileys = smileysJ;
 
 export function markdownEscape(s) {
     // https://stackoverflow.com/a/56567342

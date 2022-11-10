@@ -8,6 +8,7 @@ import * as traffic from "./traffic.js";
 import { MockFormat, findVideo } from "./videosearch.js";
 import { durationToSeconds, secondsToDuration } from "./duration.js";
 import smiley, {
+    smileys,
     markdownEscape,
     happy,
     sad,
