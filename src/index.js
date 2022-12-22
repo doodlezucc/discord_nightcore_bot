@@ -478,6 +478,8 @@ async function respondPlay(message) {
         let songLength = connection?.queue?.length ?? 0;
         if (!connection) {
             const voiceConnection = Voice.joinVoiceChannel({
+                selfMute: false,
+                selfDeaf: false,
                 channelId: voiceChannel.id,
                 guildId: voiceChannel.guild.id,
                 adapterCreator: voiceChannel.guild.voiceAdapterCreator,
