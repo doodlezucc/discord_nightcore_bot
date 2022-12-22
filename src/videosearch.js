@@ -55,7 +55,7 @@ export async function urlToInfo(url) {
     return new Promise((resolve, reject) => {
         const lines = [];
 
-        const child = ChildProcess.spawn("youtube-dl", [
+        const child = ChildProcess.spawn("yt-dlp", [
             "--get-title",
             "--get-thumbnail",
             "--get-duration",
