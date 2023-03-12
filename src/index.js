@@ -35,10 +35,11 @@ const {
 
 const client = new Discord.Client({
     intents: [
-        "GUILD_VOICE_STATES",
-        "GUILD_MESSAGES",
-        "GUILDS",
-        "GUILD_MESSAGE_REACTIONS",
+        "GuildVoiceStates",
+        "GuildMessages",
+        "Guilds",
+        "GuildMessageReactions",
+        "MessageContent",
     ]
 });
 
@@ -50,7 +51,7 @@ client.once("ready", () => {
     client.user.setPresence({
         status: "online",
         activities: [{
-            type: "PLAYING",
+            type: Discord.ActivityType.Playing,
             name: prefix + " help"
         }]
     });
@@ -382,7 +383,7 @@ async function respondPlay(message) {
     }
 
     const permissions = voiceChannel.permissionsFor(message.client.user);
-    if (!permissions.has("CONNECT") || !permissions.has("SPEAK")) {
+    if (!permissions.has("Connect") || !permissions.has("Speak")) {
         return message.channel.send(smiley(sad) + " somebody pls give me permission to join voice channels.");
     }
 
@@ -459,7 +460,7 @@ async function respondPlay(message) {
 
     if (query.startsWith("https://")) {
         if (query.includes("&")) {
-            query = query.substr(0, query.indexOf("&"));
+            query = query.substring(0, query.indexOf("&"));
         }
     }
 
@@ -517,7 +518,7 @@ async function respondPlay(message) {
 
         const sent = await message.channel.send({
             embeds: [
-                new Discord.MessageEmbed()
+                new Discord.EmbedBuilder()
                     .setColor(color)
                     .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
                     .setURL(video.url)
