@@ -45,8 +45,12 @@ export function onWrite(chunk) {
     traffic.written += chunk.length ?? chunk;
     onChange();
 }
-export function getRead() { return traffic.read; }
-export function getWritten() { return traffic.written; }
+export function getRead() {
+    return traffic.read;
+}
+export function getWritten() {
+    return traffic.written;
+}
 
 export function save() {
     fs.writeFileSync(trafficFile(), JSON.stringify(traffic, null, 2));

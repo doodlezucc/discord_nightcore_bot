@@ -2,10 +2,7 @@ import ChildProcess from "child_process";
 import Discord from "discord.js";
 import ffmpeg from "fluent-ffmpeg";
 
-import smiley, {
-    sad,
-    nervous
-} from "./smiley.js";
+import smiley, { sad, nervous } from "./smiley.js";
 import { searchVideos } from "./youtube-api.js";
 
 export class MockFormat {
@@ -50,56 +47,73 @@ export async function urlToInfo(url) {
     return new Promise((resolve, reject) => {
         const lines = [];
 
-        const child = ChildProcess.spawn("yt-dlp", [
-            "--get-title",
-            "--get-thumbnail",
-            "--get-duration",
-            "--get-id",
-            "--get-url",
-            "-f", "worstaudio/worst",
-            url
-        ], { shell: true, })
-            .on("close", async (code) => {
-                if (code == 0) {
-                    const mock = new MockVideo(url, lines[1], lines[0], lines[4], lines[3]);
+        const child = ChildProcess.spawn(
+            "yt-dlp",
+            [
+                "--get-title",
+                "--get-thumbnail",
+                "--get-duration",
+                "--get-id",
+                "--get-url",
+                "-f",
+                "worstaudio/worst",
+                url,
+            ],
+            { shell: true },
+        ).on("close", async (code) => {
+            if (code == 0) {
+                const mock = new MockVideo(
+                    url,
+                    lines[1],
+                    lines[0],
+                    lines[4],
+                    lines[3],
+                );
 
-                    await new Promise(probed => {
-                        const mediaUrl = lines[2];
-                        ffmpeg.ffprobe(mediaUrl, [
-                            "-hide_banner",
-                            "-loglevel",
-                            "warning"
-                        ], (err, data) => {
+                await new Promise((probed) => {
+                    const mediaUrl = lines[2];
+                    ffmpeg.ffprobe(
+                        mediaUrl,
+                        ["-hide_banner", "-loglevel", "warning"],
+                        (err, data) => {
                             if (err) return reject(err);
 
                             const format = data.format;
-                            const stream = data.streams.find(s => s.codec_type === "audio");
+                            const stream = data.streams.find(
+                                (s) => s.codec_type === "audio",
+                            );
                             if (stream) {
                                 if (!mock.durationInSeconds) {
                                     const seconds = format.duration;
-                                    mock.durationInSeconds = parseFloat(seconds);
+                                    mock.durationInSeconds =
+                                        parseFloat(seconds);
                                 }
-                                mock.format = new MockFormat(mediaUrl, stream.channels, stream.sample_rate);
+                                mock.format = new MockFormat(
+                                    mediaUrl,
+                                    stream.channels,
+                                    stream.sample_rate,
+                                );
                                 probed();
                             } else {
                                 reject(new Error("No audio stream found."));
                             }
-                        });
-                    });
+                        },
+                    );
+                });
 
-                    resolve(mock);
-                } else {
-                    reject(new Error("Failed to get video info."));
-                }
-            });
+                resolve(mock);
+            } else {
+                reject(new Error("Failed to get video info."));
+            }
+        });
 
-        child.stdout.on('data', (data) => {
+        child.stdout.on("data", (data) => {
             const s = data.toString() + "";
             for (const line of s.trim().split("\n")) {
                 lines.push(line);
             }
         });
-        child.stderr.on('data', (data) => {
+        child.stderr.on("data", (data) => {
             const s = data.toString() + "";
             if (s.includes("ERROR:")) {
                 reject(s.trim());
@@ -129,12 +143,17 @@ export async function findVideo(query, message) {
         // Find non-youtube video/media
         if (!(query.includes("youtu.be/") || query.includes("youtube.com/"))) {
             setTimeout(() => {
-                message.channel.send("cringe bro that ain't even a youtube link but whatever I'll try my best");
+                message.channel.send(
+                    "cringe bro that ain't even a youtube link but whatever I'll try my best",
+                );
             }, 500);
         }
         const mock = await urlToInfo(query);
 
-        if (mock.durationInSeconds && !isUnderThreeHours(mock.durationInSeconds)) {
+        if (
+            mock.durationInSeconds &&
+            !isUnderThreeHours(mock.durationInSeconds)
+        ) {
             tooLong = true;
         } else {
             video = mock;
@@ -152,13 +171,20 @@ export async function findVideo(query, message) {
 
     if (!video) {
         if (tooLong) {
-            message.channel.send("**holy frick...** it's so long " + smiley(nervous, true));
+            message.channel.send(
+                "**holy frick...** it's so long " + smiley(nervous, true),
+            );
             setTimeout(() => {
-                message.channel.send("I- I don't think I can fit this in my storage, sowwy " + smiley(sad));
+                message.channel.send(
+                    "I- I don't think I can fit this in my storage, sowwy " +
+                        smiley(sad),
+                );
             }, 1000);
         } else {
             message.channel.send(
-                "**ok wow** I couldn't find any video at all how is that even possible? " + smiley(sad));
+                "**ok wow** I couldn't find any video at all how is that even possible? " +
+                    smiley(sad),
+            );
         }
     }
 

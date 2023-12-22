@@ -7,13 +7,9 @@
         {
             "type": "node",
             "request": "launch",
-            "runtimeArgs": [
-                "--experimental-json-modules"
-            ],
+            "runtimeArgs": ["--experimental-json-modules"],
             "name": "Launch Program",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
+            "skipFiles": ["<node_internals>/**"],
             "program": "${workspaceFolder}\\src\\index.js"
         }
     ]

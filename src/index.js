@@ -13,7 +13,7 @@ import smiley, {
     happy,
     sad,
     party,
-    mad
+    mad,
 } from "./smiley.js";
 
 const jobsDir = "jobs/";
@@ -26,12 +26,8 @@ const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
 const rawFormat = "s16le";
 
-import config from "../config.json" assert { type: "json" };;
-const {
-    prefix,
-    token,
-    color
-} = config;
+import config from "../config.json" assert { type: "json" };
+const { prefix, token, color } = config;
 
 const client = new Discord.Client({
     intents: [
@@ -40,7 +36,7 @@ const client = new Discord.Client({
         "Guilds",
         "GuildMessageReactions",
         "MessageContent",
-    ]
+    ],
 });
 
 client.login(token);
@@ -50,10 +46,12 @@ client.once("ready", () => {
 
     client.user.setPresence({
         status: "online",
-        activities: [{
-            type: Discord.ActivityType.Playing,
-            name: prefix + " help"
-        }]
+        activities: [
+            {
+                type: Discord.ActivityType.Playing,
+                name: prefix + " help",
+            },
+        ],
     });
 });
 client.on("reconnecting", () => {
@@ -68,7 +66,7 @@ client.on("voiceStateUpdate", (_, state) => {
     }
 });
 
-client.on("messageCreate", async message => {
+client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
     if (!message.content.toLowerCase().startsWith(prefix)) return;
 
@@ -76,7 +74,7 @@ client.on("messageCreate", async message => {
 });
 
 const reactions = {
-    nowPlaying: "🎵"
+    nowPlaying: "🎵",
 };
 
 class Effects {
@@ -99,7 +97,17 @@ class Song {
      * @param {MockFormat} format
      * @param {Promise} writtenToDisk
      */
-    constructor(file, title, url, duration, searchQuery, effects, message, format, writtenToDisk) {
+    constructor(
+        file,
+        title,
+        url,
+        duration,
+        searchQuery,
+        effects,
+        message,
+        format,
+        writtenToDisk,
+    ) {
         this.file = file;
         this.title = title;
         this.url = url;
@@ -155,9 +163,12 @@ class Connection {
             playSong(this);
         } else {
             // A friend wanted this to be exactly 3:32.
-            this.timeout = setTimeout(() => {
-                this.onLeave();
-            }, (3 * 60 + 32) * 1000);
+            this.timeout = setTimeout(
+                () => {
+                    this.onLeave();
+                },
+                (3 * 60 + 32) * 1000,
+            );
         }
     }
 
@@ -228,19 +239,24 @@ async function respondDebugTraffic(message) {
         return bytes + " bytes (" + (bytes / 1000 / 1000).toFixed(1) + "MB)";
     }
 
-    return message.channel.send([
-        "**Approximate traffic this month**",
-        "Read: " + toLine(read),
-        "Written: " + toLine(written),
-    ].join("\n"));
+    return message.channel.send(
+        [
+            "**Approximate traffic this month**",
+            "Read: " + toLine(read),
+            "Written: " + toLine(written),
+        ].join("\n"),
+    );
 }
 
 /** @param {Discord.Message} message */
 async function respondHelp(message) {
     function singleParam(aliases, description) {
-        return "     •  `"
-            + aliases.map((a) => "-" + a).join("`/`")
-            + "` : " + description;
+        return (
+            "     •  `" +
+            aliases.map((a) => "-" + a).join("`/`") +
+            "` : " +
+            description
+        );
     }
 
     function randomRange(start, end) {
@@ -257,34 +273,57 @@ async function respondHelp(message) {
     shuffle(examples);
     if (Math.random() <= 0.5) examples.pop();
 
-    message.channel.send([
-        "*I can help " + sender + "-chan! " + smiley(happy) + "*",
-        ":musical_note: **Play some nightcore in your voice channel**: `" + prefix + " [params] <song>`",
-        "",
-        "    *params* can be any combination of the following, separated by spaces:",
-        singleParam(["r", "rate", "speed <rate>"], "Plays the song at `rate` speed (default is " + defaultRate.toFixed(2) + "x)"),
-        singleParam(["b", "bass", "bassboost <dB>"], "Boosts the bass frequencies by `dB` decibels"),
-        singleParam(["amp", "amplify", "volume <dB>"], "Amplifies the song by `dB` decibels"),
-        "",
-        "    Example: `" + prefix + " " + examples.join(" ") + " despacito`",
-        "",
-        ":next_track: **Skip the current song**: `" + prefix + " skip`",
-        "",
-        ":wave: **Stop playback**: `" + prefix + " stop/ouch/leave`",
-        "",
-        ":floppy_disk: **Save the currently playing song**: `" + prefix + " save`",
-    ].join("\n"));
+    message.channel.send(
+        [
+            "*I can help " + sender + "-chan! " + smiley(happy) + "*",
+            ":musical_note: **Play some nightcore in your voice channel**: `" +
+                prefix +
+                " [params] <song>`",
+            "",
+            "    *params* can be any combination of the following, separated by spaces:",
+            singleParam(
+                ["r", "rate", "speed <rate>"],
+                "Plays the song at `rate` speed (default is " +
+                    defaultRate.toFixed(2) +
+                    "x)",
+            ),
+            singleParam(
+                ["b", "bass", "bassboost <dB>"],
+                "Boosts the bass frequencies by `dB` decibels",
+            ),
+            singleParam(
+                ["amp", "amplify", "volume <dB>"],
+                "Amplifies the song by `dB` decibels",
+            ),
+            "",
+            "    Example: `" +
+                prefix +
+                " " +
+                examples.join(" ") +
+                " despacito`",
+            "",
+            ":next_track: **Skip the current song**: `" + prefix + " skip`",
+            "",
+            ":wave: **Stop playback**: `" + prefix + " stop/ouch/leave`",
+            "",
+            ":floppy_disk: **Save the currently playing song**: `" +
+                prefix +
+                " save`",
+        ].join("\n"),
+    );
 }
 
-/** 
+/**
  * Converts the currently playing song to mp3
  * and sends it to the text channel.
  * @param {Discord.Message} message
-*/
+ */
 async function respondSave(message) {
     const connection = connections.get(message.guild.id);
     if (!connection || !connection.queue.length) {
-        return message.channel.send("There's nothing playing rn, dingus " + smiley(mad));
+        return message.channel.send(
+            "There's nothing playing rn, dingus " + smiley(mad),
+        );
     }
 
     const song = connection.queue[0];
@@ -309,15 +348,15 @@ async function respondSave(message) {
             {
                 name: name,
                 attachment: stream,
-            }
+            },
         ],
     });
 }
 
-/** 
+/**
  * Stops playback.
  * @param {Discord.Message} message
-*/
+ */
 async function respondStop(message, leave) {
     const connection = connections.get(message.guild.id);
     if (!connection || (!connection.queue.length && !leave)) {
@@ -335,7 +374,7 @@ async function respondStop(message, leave) {
 /**
  * Skips the current song.
  * @param {Discord.Message} message
-*/
+ */
 async function respondSkip(message) {
     const connection = connections.get(message.guild.id);
     if (!connection || !connection.queue.length) {
@@ -366,8 +405,12 @@ function onPlayError(search, textChannel, err) {
         trim = "..." + trim.substring(trim.length - 1000);
     }
     textChannel?.send(
-        "uhm so I don't know how to tell you but apparently "
-        + "there was some sort of error " + smiley(sad) + "\n```" + trim + "```"
+        "uhm so I don't know how to tell you but apparently " +
+            "there was some sort of error " +
+            smiley(sad) +
+            "\n```" +
+            trim +
+            "```",
     );
 }
 
@@ -384,7 +427,10 @@ async function respondPlay(message) {
 
     const permissions = voiceChannel.permissionsFor(message.client.user);
     if (!permissions.has("Connect") || !permissions.has("Speak")) {
-        return message.channel.send(smiley(sad) + " somebody pls give me permission to join voice channels.");
+        return message.channel.send(
+            smiley(sad) +
+                " somebody pls give me permission to join voice channels.",
+        );
     }
 
     let doSkip = false;
@@ -408,17 +454,37 @@ async function respondPlay(message) {
 
             function parse(value, min, max) {
                 if (i >= args.length) {
-                    return message.channel.send(smiley(sad) + " Parameter `" + arg + "` doesn't have a value!");
+                    return message.channel.send(
+                        smiley(sad) +
+                            " Parameter `" +
+                            arg +
+                            "` doesn't have a value!",
+                    );
                 }
                 let parsed = parseFloat(value);
                 if (isNaN(parsed)) {
-                    message.channel.send(smiley(sad) + " Couldn't parse `" + arg + " " + argValue + "`!");
+                    message.channel.send(
+                        smiley(sad) +
+                            " Couldn't parse `" +
+                            arg +
+                            " " +
+                            argValue +
+                            "`!",
+                    );
                     return null;
                 }
                 if (parsed < min || parsed > max) {
-                    message.channel.send(smiley(sad)
-                        + " Parameter `" + arg + " " + argValue
-                        + "` is not in range [" + min + " to " + max + "]!"
+                    message.channel.send(
+                        smiley(sad) +
+                            " Parameter `" +
+                            arg +
+                            " " +
+                            argValue +
+                            "` is not in range [" +
+                            min +
+                            " to " +
+                            max +
+                            "]!",
                     );
                     return null;
                 }
@@ -442,7 +508,9 @@ async function respondPlay(message) {
                     bassboost = parse(argValue, 0, 60);
                     break;
                 default:
-                    return message.channel.send(smiley(sad) + " Unknown parameter `" + arg + "`!");
+                    return message.channel.send(
+                        smiley(sad) + " Unknown parameter `" + arg + "`!",
+                    );
             }
         } else {
             query += arg + " ";
@@ -455,7 +523,9 @@ async function respondPlay(message) {
 
     query = query.trim();
     if (!query.length) {
-        return message.channel.send("B-b-but you forgot the search query... " + smiley(sad));
+        return message.channel.send(
+            "B-b-but you forgot the search query... " + smiley(sad),
+        );
     }
 
     if (query.startsWith("https://")) {
@@ -465,7 +535,8 @@ async function respondPlay(message) {
     }
 
     const searchMsg = message.channel.send(
-        "Searching for `" + query + "`... _kinda weird tbh but I don't judge_");
+        "Searching for `" + query + "`... _kinda weird tbh but I don't judge_",
+    );
 
     try {
         const video = await findVideo(query, message);
@@ -499,19 +570,28 @@ async function respondPlay(message) {
             }
 
             if (songLength) {
-                playMsg = "Playing after "
-                    + (songLength >= 2
-                        ? (songLength + " songs!")
-                        : "1 song!");
+                playMsg =
+                    "Playing after " +
+                    (songLength >= 2 ? songLength + " songs!" : "1 song!");
             }
         }
 
         const duration = video.durationInSeconds / rate;
-        let msg = "**" + playMsg + " " + smiley(party) + "**"
-            + "\nDuration: `" + secondsToDuration(duration) + "`";
+        let msg =
+            "**" +
+            playMsg +
+            " " +
+            smiley(party) +
+            "**" +
+            "\nDuration: `" +
+            secondsToDuration(duration) +
+            "`";
 
         if (songLength) {
-            let secondsUntil = connection.queue.reduce((seconds, song) => seconds + song.duration, 0);
+            let secondsUntil = connection.queue.reduce(
+                (seconds, song) => seconds + song.duration,
+                0,
+            );
             secondsUntil -= (Date.now() - connection.songStartTimestamp) / 1000;
             msg += " / Playing in: `" + secondsToDuration(secondsUntil) + "`";
         }
@@ -520,28 +600,32 @@ async function respondPlay(message) {
             embeds: [
                 new Discord.EmbedBuilder()
                     .setColor(color)
-                    .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
+                    .setTitle(
+                        video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim(),
+                    ) // Remove parenthese stuff
                     .setURL(video.url)
                     .setThumbnail(video.thumbnail)
-                    .setDescription(msg)
-            ]
+                    .setDescription(msg),
+            ],
         });
 
         const tempFile = jobsDir + video.id + "_" + Date.now();
-        connection.addToQueue(new Song(
-            tempFile,
-            video.title,
-            video.url,
-            duration,
-            query,
-            new Effects(rate, amplify, bassboost),
-            sent,
-            video.format,
-        ));
+        connection.addToQueue(
+            new Song(
+                tempFile,
+                video.title,
+                video.url,
+                duration,
+                query,
+                new Effects(rate, amplify, bassboost),
+                sent,
+                video.format,
+            ),
+        );
     } catch (err) {
         onPlayError(message.content, message.channel, err);
     } finally {
-        await new Promise(done => setTimeout(done, 1000));
+        await new Promise((done) => setTimeout(done, 1000));
         (await searchMsg).delete();
     }
 }
@@ -565,7 +649,10 @@ async function playSong(connection) {
                 if (fmt.hasAudio && !fmt.hasVideo) {
                     fmt.contentLength = parseInt(fmt.contentLength);
                     // Get smallest audio-only file
-                    if (fmt.audioBitrate > 56 && fmt.contentLength < format.contentLength) {
+                    if (
+                        fmt.audioBitrate > 56 &&
+                        fmt.contentLength < format.contentLength
+                    ) {
                         format = fmt;
                     }
                 }
@@ -573,7 +660,11 @@ async function playSong(connection) {
 
             if (!format) {
                 connection.textChannel.send(
-                    "**oh no** I could't find a good audio source for `" + video.title + "` " + smiley(sad));
+                    "**oh no** I could't find a good audio source for `" +
+                        video.title +
+                        "` " +
+                        smiley(sad),
+                );
                 return connection.skip();
             }
 
@@ -584,11 +675,18 @@ async function playSong(connection) {
         const sampleRate = format.audioSampleRate;
 
         let filters = [
-            "asetrate=" + sampleRate + "*" + (song.effects.rate * format.audioChannels / 2),
+            "asetrate=" +
+                sampleRate +
+                "*" +
+                (song.effects.rate * format.audioChannels) / 2,
             "aresample=" + 48000,
         ];
         if (song.effects.bassboost != 0) {
-            filters.push("firequalizer=gain_entry='entry(0,0);entry(100," + song.effects.bassboost + ");entry(350,0)'");
+            filters.push(
+                "firequalizer=gain_entry='entry(0,0);entry(100," +
+                    song.effects.bassboost +
+                    ");entry(350,0)'",
+            );
         }
         if (song.effects.amplify != 0) {
             filters.push("volume=" + song.effects.amplify + "dB");
@@ -622,22 +720,34 @@ async function playSong(connection) {
             .audioCodec("pcm_" + rawFormat)
             .format(rawFormat)
             .on("error", (err) => {
-                if (!(err.message.includes("SIGTERM") || err.message.includes("signal 15"))) {
-                    if (err.message.includes("403 Forbidden") && connection.attempts < 3) {
+                if (
+                    !(
+                        err.message.includes("SIGTERM") ||
+                        err.message.includes("signal 15")
+                    )
+                ) {
+                    if (
+                        err.message.includes("403 Forbidden") &&
+                        connection.attempts < 3
+                    ) {
                         connection.queue.unshift(song);
                         connection.attempts++;
                         console.log("attempt " + connection.attempts);
                     } else {
                         connection.attempts = 0;
-                        onPlayError(song.searchQuery, connection.textChannel, err);
+                        onPlayError(
+                            song.searchQuery,
+                            connection.textChannel,
+                            err,
+                        );
                     }
                     stopThisSong();
                 }
             });
 
-        const ffmpegReady = new Promise(resolve => {
+        const ffmpegReady = new Promise((resolve) => {
             let count = 0;
-            ff.on("progress", progress => {
+            ff.on("progress", (progress) => {
                 count++;
 
                 if (count == 2) {
@@ -645,7 +755,7 @@ async function playSong(connection) {
                 }
             });
 
-            song.writtenToDisk = new Promise(onWritten => {
+            song.writtenToDisk = new Promise((onWritten) => {
                 ff.on("end", () => {
                     resolve();
                     onWritten();
@@ -668,19 +778,23 @@ async function playSong(connection) {
         readStream.on("data", traffic.onWrite);
 
         const resource = Voice.createAudioResource(readStream, {
-            inputType: Voice.StreamType.Raw
+            inputType: Voice.StreamType.Raw,
         });
         connection.player.play(resource);
 
-        connection.player.on("stateChange", (oldState, newState) => {
-            if (newState.status == Voice.AudioPlayerStatus.Idle || newState.status == Voice.AudioPlayerStatus.AutoPaused) {
-                connection.attempts = 0;
-                stopThisSong();
-            }
-        }).on("error", (err) => {
-            console.error(err.stack || err);
-        });
-
+        connection.player
+            .on("stateChange", (oldState, newState) => {
+                if (
+                    newState.status == Voice.AudioPlayerStatus.Idle ||
+                    newState.status == Voice.AudioPlayerStatus.AutoPaused
+                ) {
+                    connection.attempts = 0;
+                    stopThisSong();
+                }
+            })
+            .on("error", (err) => {
+                console.error(err.stack || err);
+            });
     } catch (err) {
         connection.attempts = 0;
         onPlayError(song.searchQuery, connection.textChannel, err);

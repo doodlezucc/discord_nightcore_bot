@@ -1,15 +1,13 @@
-import { youtube, youtube_v3 } from '@googleapis/youtube';
-import { MockVideo } from './videosearch.js';
+import { youtube, youtube_v3 } from "@googleapis/youtube";
+import { MockVideo } from "./videosearch.js";
 
 import config from "../config.json" assert { type: "json" };
-import { ptDurationToSeconds } from './duration.js';
-const {
-    googleApiKey
-} = config;
+import { ptDurationToSeconds } from "./duration.js";
+const { googleApiKey } = config;
 
 const yt = youtube({
     version: "v3",
-    auth: googleApiKey
+    auth: googleApiKey,
 });
 
 /**
@@ -22,7 +20,7 @@ async function searchVideoSnippets(query) {
         maxResults: 10,
         type: ["video"],
         eventType: "none", // = no livestream
-        part: ["snippet"]
+        part: ["snippet"],
     });
 
     return response.data.items ?? [];
@@ -30,7 +28,7 @@ async function searchVideoSnippets(query) {
 
 /**
  * Returns search results fully mapped to MockVideos.
- * 
+ *
  * @param {string} query
  * @returns {Promise<MockVideo[]>}
  */
@@ -39,12 +37,12 @@ export async function searchVideos(query) {
 
     /** @type {string[]} */
     const videoIds = resultSnippets
-        .map(result => result.id.videoId)
-        .filter(videoId => !!videoId);
+        .map((result) => result.id.videoId)
+        .filter((videoId) => !!videoId);
 
     const detailedResponse = await yt.videos.list({
         id: videoIds,
-        part: ["contentDetails"]
+        part: ["contentDetails"],
     });
 
     const mocks = [];
@@ -60,7 +58,7 @@ export async function searchVideos(query) {
 
 /**
  * Returns a filled in object with all necessary information we need about a video.
- * 
+ *
  * @param {youtube_v3.Schema$SearchResult} searchResult
  * @param {youtube_v3.Schema$Video} videoDetail
  */
