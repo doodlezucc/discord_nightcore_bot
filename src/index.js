@@ -6,7 +6,7 @@ import * as Stream from "stream";
 import * as fs from "fs";
 import * as traffic from "./traffic.js";
 import { MockFormat, findVideo } from "./videosearch.js";
-import { durationToSeconds, secondsToDuration } from "./duration.js";
+import { secondsToDuration } from "./duration.js";
 import smiley, {
     smileys,
     markdownEscape,
@@ -506,7 +506,7 @@ async function respondPlay(message) {
             }
         }
 
-        const duration = durationToSeconds(video.duration) / rate;
+        const duration = video.durationInSeconds / rate;
         let msg = "**" + playMsg + " " + smiley(party) + "**"
             + "\nDuration: `" + secondsToDuration(duration) + "`";
 
@@ -522,7 +522,7 @@ async function respondPlay(message) {
                     .setColor(color)
                     .setTitle(video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim()) // Remove parenthese stuff
                     .setURL(video.url)
-                    .setThumbnail(video.bestThumbnail.url)
+                    .setThumbnail(video.thumbnail)
                     .setDescription(msg)
             ]
         });

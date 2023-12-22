@@ -1,13 +1,12 @@
 import ChildProcess from "child_process";
 import Discord from "discord.js";
 import ffmpeg from "fluent-ffmpeg";
-import { secondsToDuration } from "./duration.js";
 
 import smiley, {
     sad,
     nervous
 } from "./smiley.js";
-import { searchOnYoutube } from "./youtube-api.js";
+import { searchVideos } from "./youtube-api.js";
 
 export class MockFormat {
     /**
@@ -29,21 +28,17 @@ export class MockVideo {
      * @param {string} url
      * @param {string} id
      * @param {string} title
-     * @param {string} duration
+     * @param {number} durationInSeconds
      * @param {string} thumbnail
      * @param {MockFormat} format
      */
-    constructor(url, id, title, duration, thumbnail, format) {
+    constructor(url, id, title, durationInSeconds, thumbnail, format) {
         this.url = url;
         this.id = id;
         this.title = title;
-        this.duration = duration;
+        this.durationInSeconds = durationInSeconds;
         this.thumbnail = thumbnail;
         this.format = format;
-    }
-
-    get bestThumbnail() {
-        return { "url": this.thumbnail };
     }
 }
 
@@ -80,9 +75,9 @@ export async function urlToInfo(url) {
                             const format = data.format;
                             const stream = data.streams.find(s => s.codec_type === "audio");
                             if (stream) {
-                                if (!mock.duration) {
+                                if (!mock.durationInSeconds) {
                                     const seconds = format.duration;
-                                    mock.duration = secondsToDuration(parseFloat(seconds));
+                                    mock.durationInSeconds = parseFloat(seconds);
                                 }
                                 mock.format = new MockFormat(mediaUrl, stream.channels, stream.sample_rate);
                                 probed();
@@ -113,8 +108,12 @@ export async function urlToInfo(url) {
     });
 }
 
-export function isUnderThreeHours(durationString) {
-    return !(/([1-9][0-9]|[3-9]):.*:/).test(durationString);
+/**
+ * @param {number} durationInSeconds
+ * @returns {boolean}
+ */
+export function isUnderThreeHours(durationInSeconds) {
+    return durationInSeconds < 60 * 60 * 3;
 }
 
 /**
@@ -135,19 +134,17 @@ export async function findVideo(query, message) {
         }
         const mock = await urlToInfo(query);
 
-        if (mock.duration && !isUnderThreeHours(mock.duration)) {
+        if (mock.durationInSeconds && !isUnderThreeHours(mock.durationInSeconds)) {
             tooLong = true;
         } else {
             video = mock;
         }
     } else {
         // Find youtube video
-        const searchResults = await searchOnYoutube(query);
+        const videoResults = await searchVideos(query);
 
-        video = searchResults.find((item) => {
-            if (item.snippet.liveBroadcastContent !== "none") return false;
-
-            const isGoodDuration = isUnderThreeHours(item.contentDetails.duration);
+        video = videoResults.find((vid) => {
+            const isGoodDuration = isUnderThreeHours(vid.durationInSeconds);
             if (!isGoodDuration) tooLong = true;
             return isGoodDuration;
         });
