@@ -1,13 +1,13 @@
 import ChildProcess from "child_process";
 import Discord from "discord.js";
 import ffmpeg from "fluent-ffmpeg";
-import ytsr from "ytsr";
 import { secondsToDuration } from "./duration.js";
 
 import smiley, {
     sad,
     nervous
 } from "./smiley.js";
+import { searchOnYoutube } from "./youtube-api.js";
 
 export class MockFormat {
     /**
@@ -142,18 +142,14 @@ export async function findVideo(query, message) {
         }
     } else {
         // Find youtube video
-        const search = await ytsr(query, {
-            limit: 10,
-        });
+        const searchResults = await searchOnYoutube(query);
 
-        video = search.items.find((item) => {
-            if (item.type !== "video") return false;
+        video = searchResults.find((item) => {
+            if (item.snippet.liveBroadcastContent !== "none") return false;
 
-            if (item.isLive) return false;
-
-            const isGoodDuration = isUnderThreeHours(item.duration);
+            const isGoodDuration = isUnderThreeHours(item.contentDetails.duration);
             if (!isGoodDuration) tooLong = true;
-            return item.type === "video" && isGoodDuration;
+            return isGoodDuration;
         });
     }
 
