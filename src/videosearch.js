@@ -4,6 +4,7 @@ import ffmpeg from "fluent-ffmpeg";
 
 import smiley, { sad, nervous } from "./smiley.js";
 import { searchVideos } from "./youtube-api.js";
+import { durationToSeconds } from "./duration.js";
 
 export class MockFormat {
     /**
@@ -66,7 +67,7 @@ export async function urlToInfo(url) {
                     url,
                     lines[1],
                     lines[0],
-                    lines[4],
+                    lines[4] ? durationToSeconds(lines[4]) : null,
                     lines[3],
                 );
 

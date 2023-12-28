@@ -1,5 +1,16 @@
 import * as iso8601 from "iso8601-duration";
 
+/** @param {String} d */
+export function durationToSeconds(d) {
+    const parts = d.split(":").reverse();
+    let sec = parseInt(parts[0]);
+    if (parts.length >= 2) {
+        sec += 60 * parts[1];
+        if (parts.length >= 3) sec += 60 * 60 * parts[2];
+    }
+    return sec;
+}
+
 /** @param {string} ptString */
 export function ptDurationToSeconds(ptString) {
     const pt = iso8601.parse(ptString);
