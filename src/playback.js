@@ -8,6 +8,20 @@ import { reactions } from "./branding.js";
 
 export const rawFormat = "s16le";
 
+/**
+ *
+ * @param {Song} song
+ */
+async function getAudioFormatInfo(song) {}
+
+function makeFfmpeg() {
+    const ff = ffmpeg()
+        .addInput(format.url)
+        .audioFilter(filters)
+        .audioCodec("pcm_" + rawFormat)
+        .format(rawFormat);
+}
+
 /** @param {Connection} connection */
 export async function playSong(connection) {
     const song = connection.queue[0];
@@ -98,11 +112,11 @@ export async function playSong(connection) {
             .audioCodec("pcm_" + rawFormat)
             .format(rawFormat)
             .on("error", (err) => {
-                const processWasKilled =
+                const playbackCancelledByUser =
                     err.message.includes("SIGTERM") ||
                     err.message.includes("signal 15");
 
-                if (!processWasKilled) {
+                if (!playbackCancelledByUser) {
                     const doRetry =
                         err.message.includes("403 Forbidden") &&
                         connection.attempts < 3;

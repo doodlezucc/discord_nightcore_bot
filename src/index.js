@@ -4,7 +4,7 @@ import ffmpeg from "fluent-ffmpeg";
 import * as Stream from "stream";
 import * as fs from "fs";
 import * as traffic from "./traffic.js";
-import { MockFormat, findVideo } from "./videosearch.js";
+import { findVideo } from "./videosearch.js";
 import { secondsToDuration } from "./duration.js";
 import { playSong, rawFormat } from "./playback.js";
 import {
@@ -26,6 +26,7 @@ if (!fs.existsSync(jobsDir)) {
 const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
 import config from "../config.json" assert { type: "json" };
+import { Connection } from "./player/connection.js";
 const { prefix, token, color } = config;
 
 const client = new Discord.Client({
@@ -72,114 +73,8 @@ client.on("messageCreate", async (message) => {
     handleMessage(message);
 });
 
-class Effects {
-    constructor(rate, amplify, bassboost) {
-        this.rate = rate;
-        this.amplify = amplify;
-        this.bassboost = bassboost;
-    }
-}
-
-class Song {
-    /**
-     * @param {string} file
-     * @param {string} title
-     * @param {string} url
-     * @param {number} duration Song duration in seconds.
-     * @param {string} searchQuery
-     * @param {Effects} effects
-     * @param {Discord.Message} message
-     * @param {MockFormat} format
-     * @param {Promise} writtenToDisk
-     */
-    constructor(
-        file,
-        title,
-        url,
-        duration,
-        searchQuery,
-        effects,
-        message,
-        format,
-        writtenToDisk,
-    ) {
-        this.file = file;
-        this.title = title;
-        this.url = url;
-        this.duration = duration;
-        this.searchQuery = searchQuery;
-        this.effects = effects;
-        this.message = message;
-        this.format = format;
-        this.writtenToDisk = writtenToDisk;
-    }
-}
-
-class Connection {
-    /**
-     * @param {Voice.VoiceConnection} vconnect
-     * @param {Discord.TextChannel} textChannel
-     * */
-    constructor(vconnect, textChannel) {
-        this.vc = vconnect;
-        this.textChannel = textChannel;
-
-        this.player = Voice.createAudioPlayer({
-            debug: true,
-            behaviors: { maxMissedFrames: 100 },
-        });
-        this.vc.subscribe(this.player);
-
-        /** @type {Song[]} */
-        this.queue = [];
-
-        /** @type {number} */
-        this.songStartTimestamp = 0;
-
-        this.timeout = null;
-        this.attempts = 0;
-    }
-
-    addToQueue(song) {
-        if (this.timeout) {
-            clearTimeout(this.timeout);
-        }
-
-        this.queue.push(song);
-        if (this.queue.length == 1) {
-            playSong(this);
-        }
-    }
-
-    onSongEnd() {
-        if (this.queue.length) this.queue.shift();
-
-        if (this.queue.length) {
-            playSong(this);
-        } else {
-            // A friend wanted this to be exactly 3:32.
-            this.timeout = setTimeout(
-                () => {
-                    this.onLeave();
-                },
-                (3 * 60 + 32) * 1000,
-            );
-        }
-    }
-
-    onLeave() {
-        this.player.stop();
-        this.vc.disconnect();
-        connections.delete(this.textChannel.guild.id);
-    }
-
-    skip() {
-        this.player.stop();
-    }
-}
-
 /** @type {Map<string, Connection>} */
-const connections = new Map();
+export const connections = new Map();
 
 /** @param {Discord.Message} message */
 async function handleMessage(message) {
