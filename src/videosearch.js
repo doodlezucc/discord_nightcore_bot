@@ -2,7 +2,7 @@ import ChildProcess from "child_process";
 import Discord from "discord.js";
 import ffmpeg from "fluent-ffmpeg";
 
-import smiley, { sad, nervous } from "./smiley.js";
+import { smiley, sad, nervous } from "./branding.js";
 import { searchVideos } from "./youtube-api.js";
 import { durationToSeconds } from "./duration.js";
 
