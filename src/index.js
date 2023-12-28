@@ -25,8 +25,11 @@ if (!fs.existsSync(jobsDir)) {
 // pitched up by 4 semitones = 1.25992
 const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
-import config from "../config.json" assert { type: "json" };
+import config from "../config.json";
 import { Connection } from "./player/connection.js";
+import { ErrorWithEmotion } from "./error-with-emotion.js";
+import { Song } from "./player/song.js";
+import { Effects } from "./player/effects.js";
 const { prefix, token, color } = config;
 
 const client = new Discord.Client({
@@ -304,6 +307,74 @@ export function onPlayError(search, textChannel, err) {
     );
 }
 
+function parseArgument(arg, argValue, min, max) {
+    const valueAsNumber = parseFloat(argValue);
+    if (isNaN(valueAsNumber)) {
+        throw new ErrorWithEmotion(
+            sad,
+            `Couldn't parse \`${arg} ${argValue}\`!`,
+        );
+    }
+    if (valueAsNumber < min || valueAsNumber > max) {
+        throw new ErrorWithEmotion(
+            sad,
+            `Parameter \`${arg} ${argValue}\` is not in range [${min} to ${max}]!`,
+        );
+    }
+    return valueAsNumber;
+}
+
+async function parseEffectParameters() {
+    let rate = defaultRate;
+    let bassboost = 0;
+    let amplify = 0;
+    let query = "";
+
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg.startsWith("-") && arg.length > 1) {
+            i++;
+            const argValue = args[i];
+
+            if (i >= args.length) {
+                throw new ErrorWithEmotion(
+                    sad,
+                    `Parameter \`${arg}\` doesn't have a value!`,
+                );
+            }
+
+            switch (arg.substring(1).toLowerCase()) {
+                case "r":
+                case "rate":
+                case "speed":
+                    rate = parseArgument(argValue, 0.5, 16);
+                    break;
+                case "amp":
+                case "amplify":
+                case "volume":
+                    amplify = parseArgument(argValue, -20, 60);
+                    break;
+                case "b":
+                case "bass":
+                case "bassboost":
+                    bassboost = parseArgument(argValue, 0, 60);
+                    break;
+                default:
+                    throw new ErrorWithEmotion(
+                        `Unknown parameter \`${arg}\``,
+                        sad,
+                    );
+            }
+        } else {
+            query += arg + " ";
+        }
+    }
+
+    return new Effects(rate, amplify, bassboost);
+}
+
+async function parsePlayCommand() {}
+
 /** @param {Discord.Message} message */
 async function respondPlay(message) {
     /** @type {Discord.VoiceChannel} */
@@ -324,10 +395,10 @@ async function respondPlay(message) {
     }
 
     let doSkip = false;
-    let cmd = message.content.substr(prefix.length).trim();
+    let cmd = message.content.substring(prefix.length).trim();
     if (cmd.startsWith("skip ")) {
         doSkip = true;
-        cmd = cmd.substr(5);
+        cmd = cmd.substring(5);
     }
     const args = cmd.split(" ");
 
@@ -342,73 +413,38 @@ async function respondPlay(message) {
             i++;
             const argValue = args[i];
 
-            function parse(value, min, max) {
-                if (i >= args.length) {
-                    return message.channel.send(
-                        smiley(sad) +
-                            " Parameter `" +
-                            arg +
-                            "` doesn't have a value!",
-                    );
-                }
-                let parsed = parseFloat(value);
-                if (isNaN(parsed)) {
-                    message.channel.send(
-                        smiley(sad) +
-                            " Couldn't parse `" +
-                            arg +
-                            " " +
-                            argValue +
-                            "`!",
-                    );
-                    return null;
-                }
-                if (parsed < min || parsed > max) {
-                    message.channel.send(
-                        smiley(sad) +
-                            " Parameter `" +
-                            arg +
-                            " " +
-                            argValue +
-                            "` is not in range [" +
-                            min +
-                            " to " +
-                            max +
-                            "]!",
-                    );
-                    return null;
-                }
-                return parsed;
+            if (i >= args.length) {
+                throw new ErrorWithEmotion(
+                    sad,
+                    `Parameter \`${arg}\` doesn't have a value!`,
+                );
             }
 
             switch (arg.substring(1).toLowerCase()) {
                 case "r":
                 case "rate":
                 case "speed":
-                    rate = parse(argValue, 0.5, 16);
+                    rate = parseArgument(argValue, 0.5, 16);
                     break;
                 case "amp":
                 case "amplify":
                 case "volume":
-                    amplify = parse(argValue, -20, 60);
+                    amplify = parseArgument(argValue, -20, 60);
                     break;
                 case "b":
                 case "bass":
                 case "bassboost":
-                    bassboost = parse(argValue, 0, 60);
+                    bassboost = parseArgument(argValue, 0, 60);
                     break;
                 default:
-                    return message.channel.send(
-                        smiley(sad) + " Unknown parameter `" + arg + "`!",
+                    throw new ErrorWithEmotion(
+                        `Unknown parameter \`${arg}\``,
+                        sad,
                     );
             }
         } else {
             query += arg + " ";
         }
-    }
-
-    if (rate == null || amplify == null || bassboost == null) {
-        return;
     }
 
     query = query.trim();
