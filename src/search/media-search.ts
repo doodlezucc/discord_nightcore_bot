@@ -1,10 +1,10 @@
+import ChildProcess from "child_process";
 import ffmpeg from "fluent-ffmpeg";
 
-import { searchVideos } from "./youtube-api.js";
 import { durationToSeconds } from "../duration.js";
-import { readableStreamToText } from "bun";
 import { MediaTooLongError } from "./errors/media-too-long-error.js";
 import { NoResultsError } from "./errors/no-results-error.js";
+import { searchVideos } from "./youtube-api.js";
 
 export const allowedMaximumDurationInSeconds = 60 * 60;
 
@@ -74,23 +74,54 @@ async function probeAudioDurationInSeconds(mediaUrl: string): Promise<number> {
     return durationToSeconds(audioStream.duration);
 }
 
+async function collectYtdlOutput(
+    process: ChildProcess.ChildProcessWithoutNullStreams,
+) {
+    return await new Promise<string[]>((resolve, reject) => {
+        const lines: string[] = [];
+
+        process.stdout.on("data", (data) => {
+            const s = data.toString() + "";
+            for (const line of s.trim().split("\n")) {
+                lines.push(line);
+            }
+        });
+        process.stderr.on("data", (data) => {
+            const s = data.toString() + "";
+            if (s.includes("ERROR:")) {
+                reject(s.trim());
+            }
+        });
+
+        process.on("exit", (exitCode) => {
+            if (exitCode != 0) {
+                return reject(new Error("Failed to get video info."));
+            }
+
+            resolve(lines);
+        });
+    });
+}
+
 export async function urlToInfo(url: string): Promise<InternetMedia> {
-    const child = Bun.spawn([
+    const ytdlp = ChildProcess.spawn(
         "yt-dlp",
-        "--get-title",
-        "--get-thumbnail",
-        "--get-duration",
-        "--get-id",
-        "--get-url",
-        "-f",
-        "worstaudio/worst",
-        url,
-    ]);
+        [
+            "--get-title",
+            "--get-thumbnail",
+            "--get-duration",
+            "--get-id",
+            "--get-url",
+            "-f",
+            "worstaudio/worst",
+            url,
+        ],
+        { shell: true },
+    );
 
-    const output = await readableStreamToText(child.stdout);
-    const ytdlOutputLines = output.split("\n");
+    const ytdlOutputLines = await collectYtdlOutput(ytdlp);
 
-    if (child.exitCode != 0) {
+    if (ytdlp.exitCode != 0) {
         throw new Error("Failed to get video info.");
     }
 

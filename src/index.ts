@@ -1,20 +1,21 @@
 import * as Discord from "discord.js";
-import * as Voice from "@discordjs/voice";
-import ffmpeg from "fluent-ffmpeg";
-import * as Stream from "stream";
 import * as fs from "fs";
-import * as traffic from "./traffic.js";
-import { InteractiveVideoSearcher } from "./search/media-search-interactive.js";
-import { secondsToDuration } from "./duration.js";
 import {
+    happy,
+    mad,
+    markdownEscape,
+    party,
+    sad,
     smiley,
     smileys,
-    markdownEscape,
-    happy,
-    sad,
-    party,
-    mad,
 } from "./branding.js";
+import { secondsToDuration } from "./duration.js";
+import { ErrorWithEmotion } from "./error-with-emotion.js";
+import { Connection } from "./player/connection.js";
+import type { PlayCommandParameters } from "./player/play-command.js";
+import type { Song } from "./player/song.js";
+import { InteractiveVideoSearcher } from "./search/media-search-interactive.js";
+import * as traffic from "./traffic.js";
 
 const jobsDir = "jobs/";
 if (!fs.existsSync(jobsDir)) {
@@ -24,11 +25,7 @@ if (!fs.existsSync(jobsDir)) {
 // pitched up by 4 semitones = 1.25992
 const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 
-import config from "../config.json";
-import { Connection } from "./player/connection.js";
-import { ErrorWithEmotion } from "./error-with-emotion.js";
-import type { PlayCommandParameters } from "./player/play-command.js";
-import type { Song } from "./player/song.js";
+import config from "../config.json" assert { type: "json" };
 const { prefix, token, color } = config;
 
 const client = new Discord.Client({
@@ -484,7 +481,7 @@ async function respondPlay(message: Discord.Message) {
             ],
         });
 
-        const id = video.id ?? Bun.hash(video.url).toString(16);
+        const id = video.id ?? "unknown";
         const tempFile = jobsDir + id + "_" + Date.now();
         const song: Song = {
             title: video.title,
