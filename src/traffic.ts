@@ -37,11 +37,11 @@ function onChange() {
     changed = true;
 }
 
-export function onRead(chunk) {
+export function onRead(chunk: any) {
     traffic.read += chunk.length ?? chunk;
     onChange();
 }
-export function onWrite(chunk) {
+export function onWrite(chunk: any) {
     traffic.written += chunk.length ?? chunk;
     onChange();
 }

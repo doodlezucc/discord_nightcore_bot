@@ -1,11 +1,9 @@
-import { smiley } from "./branding";
+import { smiley, type Emotion } from "./branding";
 
 export class ErrorWithEmotion extends Error {
-    /**
-     * @param {string[]} emotion
-     * @param {string} message
-     */
-    constructor(emotion, message) {
+    readonly emotion: Emotion;
+
+    constructor(emotion: Emotion, message: string) {
         super(message);
         this.emotion = emotion;
         this.name = this.constructor.name;
