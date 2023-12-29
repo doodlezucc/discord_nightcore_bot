@@ -1,6 +1,8 @@
+import type * as Discord from "discord.js";
 import * as Voice from "@discordjs/voice";
 import { SongPlayback } from "./playback";
 import type { Song } from "./song";
+import * as traffic from "../traffic";
 
 // A friend wanted this to be exactly 3:32.
 const idleTimeoutInSeconds = 60 * 3 + 32;
@@ -8,27 +10,68 @@ const idleTimeoutInSeconds = 60 * 3 + 32;
 export type LeaveCallback = () => void;
 
 export class Connection {
-    private readonly vc: Voice.VoiceConnection;
     private readonly onLeave: LeaveCallback;
-
     private readonly player: Voice.AudioPlayer;
     private queue: Song[] = [];
 
+    private voiceConnection?: Voice.VoiceConnection;
     private currentPlayback?: SongPlayback;
     private idleTimeout?: NodeJS.Timeout;
 
-    constructor(
-        voiceConnection: Voice.VoiceConnection,
-        onLeave: LeaveCallback,
-    ) {
-        this.vc = voiceConnection;
+    constructor(onLeave: LeaveCallback) {
         this.onLeave = onLeave;
 
         this.player = Voice.createAudioPlayer({
             debug: true,
             behaviors: { maxMissedFrames: 100 },
         });
-        this.vc.subscribe(this.player);
+    }
+
+    get queueLength() {
+        return this.queue.length;
+    }
+
+    get secondsUntilIdle() {
+        if (!this.currentPlayback) {
+            throw new Error("Nothing is playing right now");
+        }
+
+        let sumOfSongDurations = this.queue.reduce(
+            (seconds, song) => seconds + song.durationInSeconds,
+            0,
+        );
+
+        const secondsIntoCurrentSong =
+            (Date.now() - this.currentPlayback.startTimestamp) / 1000;
+
+        return sumOfSongDurations - secondsIntoCurrentSong;
+    }
+
+    get currentSong() {
+        return this.playing ? this.queue[0] : undefined;
+    }
+
+    get playing() {
+        return this.queue.length > 0;
+    }
+
+    join(channel: Discord.VoiceBasedChannel) {
+        if (this.voiceConnection) {
+            const currentChannelId = this.voiceConnection.joinConfig.channelId;
+
+            if (channel.id === currentChannelId) {
+                return;
+            }
+        }
+
+        this.voiceConnection = Voice.joinVoiceChannel({
+            selfMute: false,
+            selfDeaf: false,
+            channelId: channel.id,
+            guildId: channel.guildId,
+            adapterCreator: channel.guild.voiceAdapterCreator,
+        });
+        this.voiceConnection.subscribe(this.player);
     }
 
     addToQueue(song: Song) {
@@ -43,7 +86,7 @@ export class Connection {
         }
     }
 
-    skip() {
+    skipCurrentSong() {
         this.player.stop();
     }
 
@@ -53,12 +96,8 @@ export class Connection {
     }
 
     leave() {
-        this.vc.disconnect();
+        this.voiceConnection?.disconnect();
         this.onLeave();
-    }
-
-    get playing() {
-        return this.queue.length > 0;
     }
 
     private startNextSong() {
@@ -89,4 +128,10 @@ export class Connection {
             );
         }
     }
+
+    async saveToMp3() {
+        return await this.currentPlayback!.saveToMp3();
+    }
+
+    ensureConnectionToVoiceChannel(vc: Discord.VoiceBasedChannel) {}
 }

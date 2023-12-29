@@ -3,7 +3,9 @@ export const { happy, sad, party, mad, nervous } = smileysJ;
 
 export type Emotion = string[];
 
-export const smileys = smileysJ;
+export const smileys = smileysJ as {
+    [group: string]: Emotion;
+};
 
 export const reactions = {
     nowPlaying: "🎵",

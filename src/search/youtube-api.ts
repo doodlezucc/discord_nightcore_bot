@@ -2,7 +2,7 @@ import { youtube, youtube_v3 } from "@googleapis/youtube";
 
 import config from "../../config.json" assert { type: "json" };
 import { ptDurationToSeconds } from "../duration.js";
-import type { BasicMedia, MockMedia } from "./media-search.js";
+import type { InternetMedia } from "./media-search.js";
 const { googleApiKey } = config;
 
 const yt = youtube({
@@ -37,7 +37,7 @@ export async function searchVideos(query: string) {
         part: ["contentDetails"],
     });
 
-    const mocks: BasicMedia[] = [];
+    const mocks: InternetMedia[] = [];
     for (let i = 0; i < resultSnippets.length; i++) {
         const searchResult = resultSnippets[i];
         const videoDetail = detailedResponse.data.items![i];
@@ -54,7 +54,7 @@ export async function searchVideos(query: string) {
 function mockVideoFromSearchAndDetail(
     searchResult: youtube_v3.Schema$SearchResult,
     videoDetail: youtube_v3.Schema$Video,
-): BasicMedia {
+): InternetMedia {
     const id = videoDetail.id!;
 
     return {

@@ -6,7 +6,6 @@ import * as fs from "fs";
 import * as traffic from "./traffic.js";
 import { InteractiveVideoSearcher } from "./search/media-search-interactive.js";
 import { secondsToDuration } from "./duration.js";
-import { playSong, rawFormat } from "./player/playback.js";
 import {
     smiley,
     smileys,
@@ -28,9 +27,8 @@ const defaultRate = Math.pow(Math.pow(2, 1 / 12), 4);
 import config from "../config.json";
 import { Connection } from "./player/connection.js";
 import { ErrorWithEmotion } from "./error-with-emotion.js";
-import { Song } from "./player/song.js";
-import { Effects } from "./player/effects.js";
 import type { PlayCommandParameters } from "./player/play-command.js";
+import type { Song } from "./player/song.js";
 const { prefix, token, color } = config;
 
 const client = new Discord.Client({
@@ -48,7 +46,7 @@ client.login(token);
 client.once("ready", () => {
     console.log("Ready!");
 
-    client.user.setPresence({
+    client.user!.setPresence({
         status: "online",
         activities: [
             {
@@ -65,8 +63,8 @@ client.on("disconnect", () => {
     console.log("Disconnect!");
 });
 client.on("voiceStateUpdate", (_, state) => {
-    if (!state.channel && client.user.id === state.member.id) {
-        connections.get(state.guild.id)?.onLeave();
+    if (!state.channel && client.user!.id === state.member!.id) {
+        connections.get(state.guild.id)?.leave();
     }
 });
 
@@ -94,7 +92,7 @@ async function handleMessage(message: Discord.Message) {
                 return respondSkip(message);
             case "stop":
             case "ouch":
-                return respondStop(message);
+                return respondStop(message, false);
             case "leave":
                 return respondStop(message, true);
             case "save":
@@ -112,8 +110,7 @@ async function handleMessage(message: Discord.Message) {
     respondPlay(message);
 }
 
-/** @param {Discord.Message} message */
-async function respondDebugSmileys(message) {
+async function respondDebugSmileys(message: Discord.Message) {
     let s = "";
     for (let group in smileys) {
         s += "\n\n**" + group + "**:\n";
@@ -122,12 +119,11 @@ async function respondDebugSmileys(message) {
     return message.channel.send(s.trim());
 }
 
-/** @param {Discord.Message} message */
-async function respondDebugTraffic(message) {
+async function respondDebugTraffic(message: Discord.Message) {
     const read = traffic.getRead();
     const written = traffic.getWritten();
 
-    function toLine(bytes) {
+    function toLine(bytes: number) {
         return bytes + " bytes (" + (bytes / 1000 / 1000).toFixed(1) + "MB)";
     }
 
@@ -141,8 +137,8 @@ async function respondDebugTraffic(message) {
 }
 
 /** @param {Discord.Message} message */
-async function respondHelp(message) {
-    function singleParam(aliases, description) {
+async function respondHelp(message: Discord.Message) {
+    function singleParam(aliases: string[], description: string) {
         return (
             "     •  `" +
             aliases.map((a) => "-" + a).join("`/`") +
@@ -151,7 +147,7 @@ async function respondHelp(message) {
         );
     }
 
-    function randomRange(start, end) {
+    function randomRange(start: number, end: number) {
         return (start + Math.random() * (end - start)).toFixed(1);
     }
 
@@ -208,38 +204,25 @@ async function respondHelp(message) {
 /**
  * Converts the currently playing song to mp3
  * and sends it to the text channel.
- * @param {Discord.Message} message
  */
-async function respondSave(message) {
-    const connection = connections.get(message.guild.id);
-    if (!connection || !connection.queue.length) {
+async function respondSave(message: Discord.Message) {
+    const connection = connections.get(message.guild!.id);
+    if (!connection || !connection.playing) {
         return message.channel.send(
             "There's nothing playing rn, dingus " + smiley(mad),
         );
     }
 
-    const song = connection.queue[0];
-    const name = song.searchQuery + "-nightcore.mp3";
+    const name = connection.currentSong!.command.query + "-nightcore.mp3";
 
-    await song.writtenToDisk;
-
-    // If this isn't awaited, not the entire stream is sent.
     await message.channel.send("Converting to MP3!");
-
-    const stream = new Stream.PassThrough();
-    stream.on("data", traffic.onWrite);
-    ffmpeg(song.file)
-        .inputFormat(rawFormat)
-        .addInputOption("-ar " + song.format.audioSampleRate)
-        .addInputOption("-channels " + song.format.audioChannels)
-        .outputFormat("mp3")
-        .pipe(stream);
+    const mp3Stream = await connection.saveToMp3();
 
     message.channel.send({
         files: [
             {
                 name: name,
-                attachment: stream,
+                attachment: mp3Stream,
             },
         ],
     });
@@ -260,12 +243,12 @@ async function respondStop(message: Discord.Message, leaveInstantly: boolean) {
 
 async function respondSkip(message: Discord.Message) {
     const connection = connections.get(message.guild!.id);
-    if (!connection || !connection.queue.length) {
+    if (!connection || !connection.playing) {
         return message.channel.send("afaik there's nothing playing right now.");
     }
 
     message.channel.send("Skipping! " + smiley(happy, true));
-    connection.skip();
+    connection.skipCurrentSong();
 }
 
 /**
@@ -415,14 +398,18 @@ function requireSpeakingPermissions(voiceChannel: Discord.VoiceBasedChannel) {
     }
 }
 
-function establishVoiceConnection(voiceChannel: Discord.VoiceBasedChannel) {
-    return Voice.joinVoiceChannel({
-        selfMute: false,
-        selfDeaf: false,
-        channelId: voiceChannel.id,
-        guildId: voiceChannel.guild.id,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    });
+function ensureVoiceConnection(voiceChannel: Discord.VoiceBasedChannel) {
+    const guildId = voiceChannel.guildId;
+
+    let connection = connections.get(guildId);
+    if (!connection) {
+        connection = new Connection(() => connections.delete(guildId));
+
+        connections.set(guildId, connection);
+    }
+
+    connection.join(voiceChannel);
+    return connection;
 }
 
 async function respondPlay(message: Discord.Message) {
@@ -458,48 +445,30 @@ async function respondPlay(message: Discord.Message) {
         const guildId = message.guild!.id;
 
         // Join voice channel
-        let connection = connections.get(guildId);
-        let songLength = connection?.queue?.length ?? 0;
-        if (!connection) {
-            const voiceConnection = establishVoiceConnection(voiceChannel);
+        const connection = ensureVoiceConnection(voiceChannel);
+        let queueLength = connection?.queueLength ?? 0;
 
-            connection = new Connection(voiceConnection);
-            connections.set(guildId, connection);
-        } else {
-            if (voiceChannel.id !== connection.vc.joinConfig.channelId) {
-                connection.vc = establishVoiceConnection(voiceChannel);
-            }
-
-            if (songLength && doSkip) {
-                connection.skip();
-                songLength--;
-            }
-
-            if (songLength) {
-                playMsg =
-                    "Playing after " +
-                    (songLength >= 2 ? songLength + " songs!" : "1 song!");
-            }
+        if (queueLength && doSkip) {
+            connection.skipCurrentSong();
+            queueLength--;
         }
 
-        const duration = video.durationInSeconds / rate;
-        let msg =
-            "**" +
-            playMsg +
-            " " +
-            smiley(party) +
-            "**" +
-            "\nDuration: `" +
-            secondsToDuration(duration) +
-            "`";
+        if (queueLength) {
+            playMsg =
+                "Playing after " +
+                (queueLength >= 2 ? queueLength + " songs!" : "1 song!");
+        }
 
-        if (songLength) {
-            let secondsUntil = connection.queue.reduce(
-                (seconds, song) => seconds + song.duration,
-                0,
-            );
-            secondsUntil -= (Date.now() - connection.songStartTimestamp) / 1000;
-            msg += " / Playing in: `" + secondsToDuration(secondsUntil) + "`";
+        const pitchedDurationInSeconds = video.durationInSeconds / command.rate;
+        const durationString = secondsToDuration(pitchedDurationInSeconds);
+        const emotion = smiley(party);
+
+        let msg = `**${playMsg} ${emotion}**\nDuration: \`${durationString}\``;
+
+        if (queueLength) {
+            const secondsUntilIdle = connection.secondsUntilIdle;
+            const secondsUntilIdleString = secondsToDuration(secondsUntilIdle);
+            msg += " / Playing in: `" + secondsUntilIdleString + "`";
         }
 
         const sent = await message.channel.send({
@@ -510,24 +479,23 @@ async function respondPlay(message: Discord.Message) {
                         video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim(),
                     ) // Remove parenthese stuff
                     .setURL(video.url)
-                    .setThumbnail(video.thumbnail)
+                    .setThumbnail(video.thumbnail ?? null)
                     .setDescription(msg),
             ],
         });
 
-        const tempFile = jobsDir + video.id + "_" + Date.now();
-        connection.addToQueue(
-            new Song(
-                tempFile,
-                video.title,
-                video.url,
-                duration,
-                query,
-                new Effects(rate, amplify, bassboost),
-                sent,
-                video.format,
-            ),
-        );
+        const id = video.id ?? Bun.hash(video.url).toString(16);
+        const tempFile = jobsDir + id + "_" + Date.now();
+        const song: Song = {
+            title: video.title,
+            url: video.url,
+            command: command,
+            durationInSeconds: pitchedDurationInSeconds,
+            file: tempFile,
+            infoMessage: sent,
+        };
+
+        connection.addToQueue(song);
     } catch (err) {
         onPlayError(message.content, message.channel, err);
     } finally {

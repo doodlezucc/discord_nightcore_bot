@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as Stream from "stream";
 import * as Voice from "@discordjs/voice";
 import ffmpeg from "fluent-ffmpeg";
 import ytdl from "ytdl-core";
@@ -24,6 +25,7 @@ async function getAudioFormatInfo(url: string): Promise<AudioFormat> {
 
     return {
         url: url,
+        sizeInBytes: parseInt(audioFormat.contentLength),
         audioChannels: audioFormat.audioChannels!,
         audioSampleRate: parseInt(audioFormat.audioSampleRate!),
     };
@@ -66,19 +68,29 @@ function makeFilteringFfmpegPipeline(song: Song, format: AudioFormat) {
         .format(rawFormat);
 }
 
+function makeFfmpegMp3Output(file: string, inputFormat: AudioFormat) {
+    return ffmpeg(file)
+        .inputFormat(rawFormat)
+        .addInputOption("-ar " + inputFormat.audioSampleRate)
+        .addInputOption("-channels " + inputFormat.audioChannels)
+        .outputFormat("mp3");
+}
+
 export type SongEndedCallback = () => void;
+export type WrittenToDiskCallback = (file: string) => void;
 
 export class SongPlayback {
     private readonly song: Song;
     private readonly player: Voice.AudioPlayer;
     private readonly onSongEnded: SongEndedCallback;
+    private whenWrittenToDisk?: Promise<void>;
 
-    private isWrittenToDisk: boolean = false;
-    private songStartTimestamp: number = 0;
+    private _startTimestamp: number = 0;
     private attempts: number = 0;
-    private reactionPromise?: Promise<Discord.MessageReaction>;
 
+    private reactionPromise?: Promise<Discord.MessageReaction>;
     private ff?: ffmpeg.FfmpegCommand;
+    private format?: AudioFormat;
 
     constructor(
         song: Song,
@@ -88,6 +100,10 @@ export class SongPlayback {
         this.song = song;
         this.player = player;
         this.onSongEnded = onSongEnded;
+    }
+
+    get startTimestamp() {
+        return this._startTimestamp;
     }
 
     private async stop() {
@@ -109,33 +125,35 @@ export class SongPlayback {
     }
 
     private async waitForFfmpegHeadStart(ff: ffmpeg.FfmpegCommand) {
-        return new Promise<void>((resolve) => {
+        return new Promise<void>((resolveReady) => {
             let count = 0;
             ff.on("progress", (progress) => {
                 console.log(progress);
                 count++;
 
                 if (count == 2) {
-                    resolve();
+                    resolveReady();
                 }
             });
 
-            ff.on("end", () => {
-                console.log("ffmpeg end");
-                this.isWrittenToDisk = true;
-                resolve();
+            this.whenWrittenToDisk = new Promise((resolveWrittenToDisk) => {
+                ff.on("end", () => {
+                    console.log("ffmpeg end");
+                    resolveWrittenToDisk();
+                    resolveReady();
+                });
             });
         });
     }
 
     async start() {
-        this.songStartTimestamp = Date.now();
+        this._startTimestamp = Date.now();
         this.attempts++;
 
-        const format = await getAudioFormatInfo(this.song.url);
+        this.format = await getAudioFormatInfo(this.song.url);
 
         // Initialize ffmpeg
-        const ff = makeFilteringFfmpegPipeline(this.song, format);
+        const ff = makeFilteringFfmpegPipeline(this.song, this.format);
 
         this.reactionPromise = this.song.infoMessage.react(
             reactions.nowPlaying,
@@ -148,12 +166,12 @@ export class SongPlayback {
 
         // Register audio download as traffic
         // (might count too much if users decide to skip midway through)
-        traffic.onRead(parseInt(format.contentLength));
+        traffic.onRead(this.format.sizeInBytes);
 
         // Give the server a head start on writing the nightcorified file.
         // If this timeout is set too low, an end of stream occurs.
         await ffmpegReady;
-        this.songStartTimestamp = Date.now();
+        this._startTimestamp = Date.now();
 
         const readStream = fs.createReadStream(this.song.file);
         readStream.on("data", traffic.onWrite);
@@ -178,5 +196,20 @@ export class SongPlayback {
             .on("error", (err) => {
                 console.error(err.stack || err);
             });
+    }
+
+    async saveToMp3() {
+        if (!this.format || !this.whenWrittenToDisk) {
+            throw new Error("Format is not yet identified");
+        }
+
+        await this.whenWrittenToDisk;
+
+        const stream = new Stream.PassThrough();
+        stream.on("data", traffic.onWrite);
+
+        const ff = makeFfmpegMp3Output(this.song.file, this.format);
+        ff.pipe(stream);
+        return stream;
     }
 }
