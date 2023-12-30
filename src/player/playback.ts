@@ -10,7 +10,8 @@ import { reactions } from "../branding.js";
 import * as traffic from "../traffic.js";
 import type * as Discord from "discord.js";
 
-const rawFormat = "s16le";
+const streamingCodec = "libopus";
+const streamingFormat = "ogg";
 
 async function getAudioFormatInfo(url: string): Promise<AudioFormat> {
     const info = await ytdl.getInfo(url);
@@ -64,13 +65,13 @@ function makeFilteringFfmpegPipeline(song: Song, format: AudioFormat) {
     return ffmpeg()
         .addInput(format.url)
         .audioFilter(filters)
-        .audioCodec("pcm_" + rawFormat)
-        .format(rawFormat);
+        .audioCodec(streamingCodec)
+        .format(streamingFormat);
 }
 
 function makeFfmpegMp3Output(file: string, inputFormat: AudioFormat) {
     return ffmpeg(file)
-        .inputFormat(rawFormat)
+        .inputFormat(streamingFormat)
         .addInputOption("-ar " + inputFormat.audioSampleRate)
         .addInputOption("-channels " + inputFormat.audioChannels)
         .outputFormat("mp3");
@@ -124,28 +125,6 @@ export class SongPlayback {
         }
     }
 
-    private async waitForFfmpegHeadStart(ff: ffmpeg.FfmpegCommand) {
-        return new Promise<void>((resolveReady) => {
-            let count = 0;
-            ff.on("progress", (progress) => {
-                console.log(progress);
-                count++;
-
-                if (count == 2) {
-                    resolveReady();
-                }
-            });
-
-            this.whenWrittenToDisk = new Promise((resolveWrittenToDisk) => {
-                ff.on("end", () => {
-                    console.log("ffmpeg end");
-                    resolveWrittenToDisk();
-                    resolveReady();
-                });
-            });
-        });
-    }
-
     async start() {
         this._startTimestamp = Date.now();
         this.attempts++;
@@ -153,16 +132,24 @@ export class SongPlayback {
         this.format = await getAudioFormatInfo(this.song.url);
 
         // Initialize ffmpeg
-        const ff = makeFilteringFfmpegPipeline(this.song, this.format);
+        this.ff = makeFilteringFfmpegPipeline(this.song, this.format);
+        this.ff.on("error", (err) => {
+            console.error(err.stack || err);
+        });
 
         this.reactionPromise = this.song.infoMessage.react(
             reactions.nowPlaying,
         );
 
-        const ffmpegReady = this.waitForFfmpegHeadStart(ff);
+        this.whenWrittenToDisk = new Promise((resolveWrittenToDisk) => {
+            this.ff.on("end", () => {
+                console.log("ffmpeg end");
+                resolveWrittenToDisk();
+            });
+        });
 
         const writeStream = fs.createWriteStream(this.song.file);
-        ff.pipe(writeStream);
+        this.ff.pipe(writeStream);
 
         // Register audio download as traffic
         // (might count too much if users decide to skip midway through)
@@ -170,14 +157,14 @@ export class SongPlayback {
 
         // Give the server a head start on writing the nightcorified file.
         // If this timeout is set too low, an end of stream occurs.
-        await ffmpegReady;
+        await new Promise((res) => setTimeout(res, 3000));
         this._startTimestamp = Date.now();
 
-        const readStream = fs.createReadStream(this.song.file);
+        const readStream = fs.createReadStream(this.song.file, {});
         readStream.on("data", traffic.onWrite);
 
         const resource = Voice.createAudioResource(readStream, {
-            inputType: Voice.StreamType.Raw,
+            inputType: Voice.StreamType.OggOpus,
         });
         this.player.play(resource);
 
