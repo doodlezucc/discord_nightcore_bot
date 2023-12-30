@@ -24,7 +24,7 @@ async function getAudioFormatInfo(url: string): Promise<AudioFormat> {
     }
 
     return {
-        url: url,
+        url: audioFormat.url,
         sizeInBytes: parseInt(audioFormat.contentLength),
         audioChannels: audioFormat.audioChannels!,
         audioSampleRate: parseInt(audioFormat.audioSampleRate!),
