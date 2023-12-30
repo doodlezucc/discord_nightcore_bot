@@ -234,6 +234,7 @@ async function respondStop(message: Discord.Message, leaveInstantly: boolean) {
     }
 
     await message.channel.send("oh- okay... " + smiley(sad));
+    connection.stop();
 
     if (leaveInstantly) connection.leave();
 }
