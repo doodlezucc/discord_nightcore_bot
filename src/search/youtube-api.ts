@@ -23,7 +23,7 @@ async function searchVideoSnippets(query: string) {
 }
 
 /**
- * Returns search results fully mapped to MockVideos.
+ * Returns search results mapped to InternetMedia objects.
  */
 export async function searchVideos(query: string) {
     const resultSnippets = await searchVideoSnippets(query);
@@ -37,21 +37,21 @@ export async function searchVideos(query: string) {
         part: ["contentDetails"],
     });
 
-    const mocks: InternetMedia[] = [];
+    const mediaResults: InternetMedia[] = [];
     for (let i = 0; i < resultSnippets.length; i++) {
         const searchResult = resultSnippets[i];
         const videoDetail = detailedResponse.data.items![i];
 
-        mocks.push(mockVideoFromSearchAndDetail(searchResult, videoDetail));
+        mediaResults.push(mediaFromSearchAndDetail(searchResult, videoDetail));
     }
 
-    return mocks;
+    return mediaResults;
 }
 
 /**
  * Returns a filled in object with all necessary information we need about a video.
  */
-function mockVideoFromSearchAndDetail(
+function mediaFromSearchAndDetail(
     searchResult: youtube_v3.Schema$SearchResult,
     videoDetail: youtube_v3.Schema$Video,
 ): InternetMedia {

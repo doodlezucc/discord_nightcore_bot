@@ -140,13 +140,13 @@ export async function urlToInfo(url: string): Promise<InternetMedia> {
 
 export abstract class GenericSearcher {
     protected async findVideoFromLink(url: string): Promise<InternetMedia> {
-        const mock = await urlToInfo(url);
+        const fetchedMedia = await urlToInfo(url);
 
-        if (mock.durationInSeconds > allowedMaximumDurationInSeconds) {
+        if (fetchedMedia.durationInSeconds > allowedMaximumDurationInSeconds) {
             throw new MediaTooLongError();
         }
 
-        return mock;
+        return fetchedMedia;
     }
 
     protected async findVideoFromQuery(query: string): Promise<InternetMedia> {
