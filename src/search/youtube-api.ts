@@ -25,7 +25,7 @@ async function searchVideoSnippets(query: string) {
 /**
  * Returns search results mapped to InternetMedia objects.
  */
-export async function searchVideos(query: string) {
+export async function searchVideos(query: string): Promise<InternetMedia[]> {
     const resultSnippets = await searchVideoSnippets(query);
 
     const videoIds = resultSnippets
@@ -58,6 +58,7 @@ function mediaFromSearchAndDetail(
     const id = videoDetail.id!;
 
     return {
+        id: id,
         url: `https://youtu.be/${id}`,
         title: searchResult.snippet!.title!,
         durationInSeconds: ptDurationToSeconds(
