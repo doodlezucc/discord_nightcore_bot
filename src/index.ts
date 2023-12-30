@@ -483,15 +483,18 @@ async function respondPlay(message: Discord.Message) {
         // Join voice channel
         const connection = ensureVoiceConnection(voiceChannel);
 
-        if (connection.queueLength > 0 && skipCurrentSong) {
+        let queueLength = connection.queueLength;
+        if (queueLength > 0 && skipCurrentSong) {
             connection.skipCurrentSong();
+            queueLength--; // Skipping is async, but should be displayed immediately
         }
 
         const pitchedDurationInSeconds =
             media.durationInSeconds / playCommand.rate;
+
         const infoEmbed = makeEmbed(
             media,
-            connection.queueLength,
+            queueLength,
             connection.secondsUntilIdle,
             pitchedDurationInSeconds,
         );
