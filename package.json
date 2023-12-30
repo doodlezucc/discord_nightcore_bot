@@ -5,7 +5,9 @@
     "type": "module",
     "main": "src/index.ts",
     "scripts": {
-        "dev": "tsc && node build/index.js",
+        "build": "tsc",
+        "serve": "node build/index.js",
+        "dev": "npm run build && npm run serve",
         "format": "prettier . --write"
     },
     "author": "doodlezucc",
