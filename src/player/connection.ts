@@ -107,7 +107,7 @@ export class Connection {
         this.currentPlayback = new SongPlayback(
             this.queue[0],
             this.player,
-            this.onSongEnd,
+            () => this.onSongEnd(),
         );
 
         this.currentPlayback!.start();
@@ -122,7 +122,7 @@ export class Connection {
             this.startNextSong();
         } else {
             this.idleTimeout = setTimeout(
-                this.leave,
+                () => this.leave(),
                 idleTimeoutInSeconds * 1000,
             );
         }
@@ -131,6 +131,4 @@ export class Connection {
     async saveToMp3() {
         return await this.currentPlayback!.saveToMp3();
     }
-
-    ensureConnectionToVoiceChannel(vc: Discord.VoiceBasedChannel) {}
 }
