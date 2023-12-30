@@ -15,6 +15,7 @@ import { Connection } from "./player/connection.js";
 import type { PlayCommandParameters } from "./player/play-command.js";
 import type { Song } from "./player/song.js";
 import { InteractiveVideoSearcher } from "./search/media-search-interactive.js";
+import { InternetMedia } from "./search/media-search.js";
 import * as traffic from "./traffic.js";
 
 const jobsDir = "jobs/";
@@ -410,6 +411,47 @@ function ensureVoiceConnection(voiceChannel: Discord.VoiceBasedChannel) {
     return connection;
 }
 
+function makeEmbed(
+    media: InternetMedia,
+    queueLength: number,
+    queueDuration: number,
+    pitchedDurationInSeconds: number,
+) {
+    let playMsg = "Playing right now!";
+
+    if (queueLength) {
+        playMsg =
+            "Playing after " +
+            (queueLength >= 2 ? queueLength + " songs!" : "1 song!");
+    }
+
+    const durationString = secondsToDuration(pitchedDurationInSeconds);
+    const emotion = smiley(party);
+
+    let msg = `**${playMsg} ${emotion}**\nDuration: \`${durationString}\``;
+
+    if (queueLength) {
+        const secondsUntilIdleString = secondsToDuration(queueDuration);
+        msg += " / Playing in: `" + secondsUntilIdleString + "`";
+    }
+
+    const titleWithoutParentheses = media.title
+        .replace(/(\[|\()(.*?)(\]|\))/g, "")
+        .trim();
+
+    const infoEmbed = new Discord.EmbedBuilder()
+        .setColor(color as Discord.ColorResolvable)
+        .setTitle(titleWithoutParentheses)
+        .setURL(media.url)
+        .setDescription(msg);
+
+    if (media.thumbnail) {
+        infoEmbed.setThumbnail(media.thumbnail);
+    }
+
+    return infoEmbed;
+}
+
 async function respondPlay(message: Discord.Message) {
     const voiceChannel = message.member!.voice.channel;
     if (!voiceChannel) {
@@ -418,76 +460,52 @@ async function respondPlay(message: Discord.Message) {
 
     requireSpeakingPermissions(voiceChannel);
 
-    let doSkip = false;
-    let cmd = message.content.substring(prefix.length).trim();
-    if (cmd.startsWith("skip ")) {
-        doSkip = true;
-        cmd = cmd.substring(5);
-    }
+    const fullCommand = message.content.substring(prefix.length).trim();
+    const skipCurrentSong = fullCommand.startsWith("skip ");
 
-    const args = cmd.split(" ");
-    const command = parsePlayCommand(args);
+    const commandBody = skipCurrentSong
+        ? fullCommand.substring(5)
+        : fullCommand;
+
+    const args = commandBody.split(" ");
+    const playCommand = parsePlayCommand(args);
 
     const searchMsg = message.channel.send(
         "Searching for `" +
-            command.query +
+            playCommand.query +
             "`... _kinda weird tbh but I don't judge_",
     );
 
     try {
         const searcher = new InteractiveVideoSearcher(message);
-        const video = await searcher.findVideo(command.query);
-
-        let playMsg = "Playing right now!";
-
-        const guildId = message.guild!.id;
+        const media = await searcher.findVideo(playCommand.query);
 
         // Join voice channel
         const connection = ensureVoiceConnection(voiceChannel);
-        let queueLength = connection?.queueLength ?? 0;
 
-        if (queueLength && doSkip) {
+        if (connection.queueLength > 0 && skipCurrentSong) {
             connection.skipCurrentSong();
-            queueLength--;
         }
 
-        if (queueLength) {
-            playMsg =
-                "Playing after " +
-                (queueLength >= 2 ? queueLength + " songs!" : "1 song!");
-        }
-
-        const pitchedDurationInSeconds = video.durationInSeconds / command.rate;
-        const durationString = secondsToDuration(pitchedDurationInSeconds);
-        const emotion = smiley(party);
-
-        let msg = `**${playMsg} ${emotion}**\nDuration: \`${durationString}\``;
-
-        if (queueLength) {
-            const secondsUntilIdle = connection.secondsUntilIdle;
-            const secondsUntilIdleString = secondsToDuration(secondsUntilIdle);
-            msg += " / Playing in: `" + secondsUntilIdleString + "`";
-        }
+        const pitchedDurationInSeconds =
+            media.durationInSeconds / playCommand.rate;
+        const infoEmbed = makeEmbed(
+            media,
+            connection.queueLength,
+            connection.secondsUntilIdle,
+            pitchedDurationInSeconds,
+        );
 
         const sent = await message.channel.send({
-            embeds: [
-                new Discord.EmbedBuilder()
-                    .setColor(color as Discord.ColorResolvable)
-                    .setTitle(
-                        video.title.replace(/(\[|\()(.*?)(\]|\))/g, "").trim(),
-                    ) // Remove parenthese stuff
-                    .setURL(video.url)
-                    .setThumbnail(video.thumbnail ?? null)
-                    .setDescription(msg),
-            ],
+            embeds: [infoEmbed],
         });
 
-        const id = video.id ?? "unknown";
+        const id = media.id ?? "unknown";
         const tempFile = jobsDir + id + "_" + Date.now();
         const song: Song = {
-            title: video.title,
-            url: video.url,
-            command: command,
+            title: media.title,
+            url: media.url,
+            command: playCommand,
             durationInSeconds: pitchedDurationInSeconds,
             file: tempFile,
             infoMessage: sent,

@@ -32,7 +32,7 @@ export class Connection {
 
     get secondsUntilIdle() {
         if (!this.currentPlayback) {
-            throw new Error("Nothing is playing right now");
+            return 0;
         }
 
         let sumOfSongDurations = this.queue.reduce(
