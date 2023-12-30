@@ -12,7 +12,7 @@
     "license": "ISC",
     "dependencies": {
         "@discordjs/opus": "github:discordjs/opus",
-        "@discordjs/voice": "^0.14.0",
+        "@discordjs/voice": "^0.16.1",
         "@googleapis/youtube": "^13.0.0",
         "@types/fluent-ffmpeg": "^2.1.24",
         "discord.js": "^14.7.1",

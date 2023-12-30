@@ -69,12 +69,8 @@ function makeFilteringFfmpegPipeline(song: Song, format: AudioFormat) {
         .format(streamingFormat);
 }
 
-function makeFfmpegMp3Output(file: string, inputFormat: AudioFormat) {
-    return ffmpeg(file)
-        .inputFormat(streamingFormat)
-        .addInputOption("-ar " + inputFormat.audioSampleRate)
-        .addInputOption("-channels " + inputFormat.audioChannels)
-        .outputFormat("mp3");
+function makeFfmpegMp3Output(file: string) {
+    return ffmpeg(file).inputFormat(streamingFormat).outputFormat("mp3");
 }
 
 export type SongEndedCallback = () => void;
@@ -195,7 +191,7 @@ export class SongPlayback {
         const stream = new Stream.PassThrough();
         stream.on("data", traffic.onWrite);
 
-        const ff = makeFfmpegMp3Output(this.song.file, this.format);
+        const ff = makeFfmpegMp3Output(this.song.file);
         ff.pipe(stream);
         return stream;
     }
