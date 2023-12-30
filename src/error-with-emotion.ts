@@ -1,4 +1,4 @@
-import { smiley, type Emotion } from "./branding";
+import { smiley, type Emotion } from "./branding.js";
 
 export class ErrorWithEmotion extends Error {
     readonly emotion: Emotion;

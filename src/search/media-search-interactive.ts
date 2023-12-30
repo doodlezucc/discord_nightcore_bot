@@ -1,7 +1,7 @@
-import { nervous, sad, smiley } from "../branding";
-import { MediaTooLongError } from "./errors/media-too-long-error";
-import { NoResultsError } from "./errors/no-results-error";
-import { GenericSearcher } from "./media-search";
+import { nervous, sad, smiley } from "../branding.js";
+import { MediaTooLongError } from "./errors/media-too-long-error.js";
+import { NoResultsError } from "./errors/no-results-error.js";
+import { GenericSearcher } from "./media-search.js";
 
 import Discord from "discord.js";
 

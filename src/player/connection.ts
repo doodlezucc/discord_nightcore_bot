@@ -1,8 +1,7 @@
 import type * as Discord from "discord.js";
 import * as Voice from "@discordjs/voice";
-import { SongPlayback } from "./playback";
-import type { Song } from "./song";
-import * as traffic from "../traffic";
+import { SongPlayback } from "./playback.js";
+import type { Song } from "./song.js";
 
 // A friend wanted this to be exactly 3:32.
 const idleTimeoutInSeconds = 60 * 3 + 32;
