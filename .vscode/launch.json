@@ -7,10 +7,15 @@
         {
             "type": "node",
             "request": "launch",
-            "runtimeArgs": ["--experimental-json-modules"],
             "name": "Launch Program",
-            "skipFiles": ["<node_internals>/**"],
-            "program": "${workspaceFolder}\\src\\index.js"
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\src\\index.ts",
+            "preLaunchTask": "tsc: build - tsconfig.json",
+            "outFiles": [
+                "${workspaceFolder}/build/**/*.js"
+            ]
         }
     ]
 }

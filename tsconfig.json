@@ -5,8 +5,9 @@
         "moduleResolution": "NodeNext",
         "resolveJsonModule": true,
         "sourceMap": true,
+        "incremental": true,
 
         "rootDir": "src",
-        "outDir": "build"
+        "outDir": "./build"
     }
 }

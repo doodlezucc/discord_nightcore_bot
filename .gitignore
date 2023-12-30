@@ -1,6 +1,7 @@
 node_modules
 build
-jobs
+*.tsbuildinfo
 
+jobs
 config.json
 traffic
