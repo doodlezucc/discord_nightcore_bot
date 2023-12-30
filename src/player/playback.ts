@@ -130,16 +130,10 @@ export class SongPlayback {
         this.format = await getAudioFormatInfo(this.song.url);
 
         // Initialize ffmpeg
-        this.ff = makeFilteringFfmpegPipeline(this.song, this.format)
-            .on("error", (err) => {
-                console.error(err.stack || err);
-            })
-            .on("progress", (progress) => {
-                console.log(progress);
-            })
-            .on("end", () => {
-                console.log("ffmpeg end");
-            });
+        this.ff = makeFilteringFfmpegPipeline(this.song, this.format);
+        this.ff.on("error", (err) => {
+            console.error(err.stack || err);
+        });
 
         this.reactionPromise = this.song.infoMessage.react(
             reactions.nowPlaying,
@@ -152,7 +146,6 @@ export class SongPlayback {
 
         this.whenWrittenToDisk = new Promise((resolve) => {
             fileStream.on("finish", () => {
-                console.log("file written to disk!");
                 resolve();
             });
         });
@@ -180,7 +173,6 @@ export class SongPlayback {
 
         this.player
             .on("stateChange", (oldState, newState) => {
-                console.log(newState);
                 const playbackHasStopped =
                     newState.status == Voice.AudioPlayerStatus.Idle ||
                     newState.status == Voice.AudioPlayerStatus.AutoPaused;
