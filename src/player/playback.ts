@@ -10,6 +10,8 @@ import { reactions } from "../branding.js";
 import * as traffic from "../traffic.js";
 import type * as Discord from "discord.js";
 
+/** This defines how much audio data can be stored in memory while piping to Discord. */
+const audioBufferSizeInBytes = 1 * 1000 * 1000;
 const streamingCodec = "libopus";
 const streamingFormat = "ogg";
 
@@ -128,38 +130,50 @@ export class SongPlayback {
         this.format = await getAudioFormatInfo(this.song.url);
 
         // Initialize ffmpeg
-        this.ff = makeFilteringFfmpegPipeline(this.song, this.format);
-        this.ff.on("error", (err) => {
-            console.error(err.stack || err);
-        });
+        this.ff = makeFilteringFfmpegPipeline(this.song, this.format)
+            .on("error", (err) => {
+                console.error(err.stack || err);
+            })
+            .on("progress", (progress) => {
+                console.log(progress);
+            })
+            .on("end", () => {
+                console.log("ffmpeg end");
+            });
 
         this.reactionPromise = this.song.infoMessage.react(
             reactions.nowPlaying,
         );
 
-        this.whenWrittenToDisk = new Promise((resolveWrittenToDisk) => {
-            this.ff.on("end", () => {
-                console.log("ffmpeg end");
-                resolveWrittenToDisk();
+        const passThrough = new Stream.PassThrough({
+            highWaterMark: audioBufferSizeInBytes,
+        });
+        const fileStream = fs.createWriteStream(this.song.file);
+
+        this.whenWrittenToDisk = new Promise((resolve) => {
+            fileStream.on("finish", () => {
+                console.log("file written to disk!");
+                resolve();
             });
         });
 
-        const writeStream = fs.createWriteStream(this.song.file);
-        this.ff.pipe(writeStream);
+        const discordStream = new Stream.PassThrough({
+            highWaterMark: audioBufferSizeInBytes,
+        });
+        discordStream.on("data", traffic.onWrite);
+
+        passThrough.pipe(fileStream);
+        passThrough.pipe(discordStream);
+
+        this.ff.pipe(passThrough);
 
         // Register audio download as traffic
         // (might count too much if users decide to skip midway through)
         traffic.onRead(this.format.sizeInBytes);
 
-        // Give the server a head start on writing the nightcorified file.
-        // If this timeout is set too low, an end of stream occurs.
-        await new Promise((res) => setTimeout(res, 3000));
         this._startTimestamp = Date.now();
 
-        const readStream = fs.createReadStream(this.song.file, {});
-        readStream.on("data", traffic.onWrite);
-
-        const resource = Voice.createAudioResource(readStream, {
+        const resource = Voice.createAudioResource(discordStream, {
             inputType: Voice.StreamType.OggOpus,
         });
         this.player.play(resource);
